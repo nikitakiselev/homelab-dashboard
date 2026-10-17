@@ -423,22 +423,28 @@ function App() {
                     icon={Server}
                     title="Серверы"
                     value={String(online.length)}
-                    unit={`/ ${visible.length}`}
+                    unit={`/ ${eligible.length}`}
                     detail="в сети"
                     color="blue"
                     footer={
                       <>
                         <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                        {visible.length - online.length
-                          ? `${visible.length - online.length} недоступно`
-                          : "Серверы доступны"}
+                        {eligible.length - online.length
+                          ? `${eligible.length - online.length} недоступно`
+                          : eligible.length
+                            ? "Серверы доступны"
+                            : "Нет подключённых серверов"}
                       </>
                     }
                   />
                   <Summary
                     icon={Cpu}
                     title="Процессор"
-                    value={online.length ? String(Math.round(cpu)) : "—"}
+                    value={
+                      metrics.some((m) => m.cpu.usage != null)
+                        ? String(Math.round(cpu))
+                        : "—"
+                    }
                     unit="%"
                     detail="средняя загрузка"
                     color="purple"
@@ -712,6 +718,13 @@ function App() {
                             />
                             <XAxis
                               dataKey="bucket"
+                              type="number"
+                              scale="time"
+                              domain={[
+                                (updated || Date.now() / 1000) - period * 86400,
+                                updated || Date.now() / 1000,
+                              ]}
+                              allowDataOverflow
                               axisLine={false}
                               tickLine={false}
                               minTickGap={45}
@@ -1014,8 +1027,10 @@ function App() {
                 {detail.name}
               </DialogTitle>
               <DialogDescription className="mt-2 text-xs text-zinc-500">
-                {detail.ip}:{detail.port} ·{" "}
-                {detail.metrics?.os || "ОС неизвестна"}
+                {detail.local
+                  ? "Центральный сервер"
+                  : `${detail.ip}:${detail.port}`}{" "}
+                · {detail.metrics?.os || "ОС неизвестна"}
                 {detail.demo ? " · Демонстрационные данные" : ""}
               </DialogDescription>
               <HostDetails host={detail} />
@@ -1032,7 +1047,7 @@ function App() {
                   <Network size={13} />
                   История сети
                 </Button>
-                {!detail.demo && (
+                {!detail.demo && !detail.local && (
                   <Button
                     variant="ghost"
                     size="sm"
@@ -1186,7 +1201,7 @@ function ServerCard({
             {h.name}
           </h3>
           <div className="mt-1 flex items-center gap-2 text-[10px] text-zinc-400">
-            <span>{h.ip}</span>
+            <span>{h.local ? "Этот сервер" : h.ip}</span>
             <span className="rounded border border-zinc-100 bg-zinc-50 px-1.5 py-px text-[8px]">
               {m?.platform === "Proxmox"
                 ? "Proxmox"
@@ -1712,10 +1727,11 @@ function HostDetails({ host }: { host: Host }) {
                   detail={gpu.name}
                 />
                 <p className="mt-3 text-[11px] text-zinc-400">
-                  VRAM{" "}
                   {gpu.memory_used != null && gpu.memory_total != null
-                    ? `${bytes(gpu.memory_used)} / ${bytes(gpu.memory_total)}`
-                    : "общая системная память"}
+                    ? `VRAM ${bytes(gpu.memory_used)} / ${bytes(gpu.memory_total)}`
+                    : gpu.shared_memory
+                      ? "Общая системная память"
+                      : "Объём видеопамяти недоступен"}
                   {gpu.temperature != null ? ` · ${gpu.temperature} °C` : ""}
                 </p>
               </div>

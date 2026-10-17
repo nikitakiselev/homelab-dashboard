@@ -51,10 +51,11 @@ export type Metrics = {
   network: { rx: number; tx: number; interfaces: string[] };
 };
 export type Host = {
+  local?: boolean;
   id: string;
   name: string;
   ip: string;
-  port: number;
+  port: number | null;
   online: boolean;
   demo: boolean;
   metrics: Metrics | null;

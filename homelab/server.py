@@ -6,6 +6,7 @@ import json
 import math
 import mimetypes
 import os
+import platform
 import sqlite3
 import threading
 import time
@@ -17,6 +18,7 @@ from urllib.parse import urlparse, parse_qs
 from urllib.request import Request, build_opener, HTTPRedirectHandler, ProxyHandler
 from .storage import History, RETENTION
 from .bundle import agent_archive
+from .agent import Collector
 
 class NoRedirect(HTTPRedirectHandler):
     def redirect_request(self,*args):
@@ -79,11 +81,12 @@ def demo_metrics(index):
                    'memory_used':4.2*1024**3,'memory_total':12*1024**3,'temperature':51}] if index==1 else []}
 
 class Dashboard:
-    def __init__(self,path,demo=False):
+    def __init__(self,path,demo=False,monitor_self=False):
         self.history = History(path)
         self.path = str(path)
         os.chmod(self.path,0o600)
         self.demo = demo
+        self.local_collector = None
         self.cache = {}
         self.errors = {}
         self.verified = set()
@@ -99,6 +102,16 @@ class Dashboard:
                     self.cache[row['id']] = json.loads(row['metrics'])
                 except ValueError:
                     pass
+
+        if monitor_self:
+            if platform.system() != 'Linux':
+                raise ValueError('Built-in collection requires Linux')
+            self.local_collector = Collector(self.history,history_host='local')
+            self.local_collector.start()
+
+    def close(self):
+        if self.local_collector:
+            self.local_collector.stop()
 
     @contextmanager
     def db(self):
@@ -168,6 +181,12 @@ class Dashboard:
                 result.append({'id':h['id'],'name':h['name'],'ip':h['ip'],'port':h['port'],
                     'online':online,'metrics':m,'error':self.errors.get(h['id']),
                     'history_error':self.errors.get(h['id']+'-history'),'demo':False})
+        if self.local_collector:
+            m = self.local_collector.latest
+            result.insert(0,{'id':'local','name':m['hostname'] if m else platform.node(),
+                'ip':'127.0.0.1','port':None,'local':True,'demo':False,'metrics':m,
+                'online':m is not None and time.time()-m['timestamp']<35,
+                'error':self.local_collector.error,'history_error':None})
         if self.demo:
             result.extend({'id':f'demo-{i}','name':demo_metrics(i)['hostname'],'ip':f'192.168.1.{10+i*10}',
                 'port':9108,'online':True,'metrics':demo_metrics(i),'demo':True} for i in range(4))
@@ -182,6 +201,8 @@ class Dashboard:
         if not 1<=port<=65535: raise ValueError('Некорректный порт')
         if len(token)<24 or len(token)>256: raise ValueError('Токен агента: от 24 до 256 символов')
         m=validate_metrics(agent_get(ip,port,token,'/v1/metrics'))
+        if self.local_collector and m['agent_id']==self.local_collector.agent_id:
+            raise ValueError('Этот хост уже подключён встроенным сборщиком')
         hid=uuid.uuid4().hex
         try:
             with self.db() as db:
@@ -196,6 +217,8 @@ class Dashboard:
         return {'id':hid}
 
     def delete(self,hid):
+        if hid=='local':
+            raise ValueError('Встроенный сборщик отключается параметром --no-self-monitor')
         with self.db() as db:
             db.execute('DELETE FROM hosts WHERE id=?',(hid,))
             db.execute('DELETE FROM history WHERE host=?',(hid,))
@@ -303,14 +326,18 @@ def main():
     p.add_argument('--port',default=8080,type=int)
     p.add_argument('--data',default='./data/dashboard.sqlite')
     p.add_argument('--demo',action='store_true')
+    p.add_argument('--no-self-monitor',action='store_true',help='Disable the built-in Linux collector')
     args=p.parse_args()
     token=os.getenv('HOMELAB_DASHBOARD_TOKEN','')
     if args.bind not in ('127.0.0.1','::1','localhost') and len(token)<24:
         p.error('For LAN access, set HOMELAB_DASHBOARD_TOKEN (24+ characters)')
-    dashboard=Dashboard(args.data,args.demo)
+    dashboard=Dashboard(args.data,args.demo,monitor_self=platform.system()=='Linux' and not args.no_self_monitor)
     threading.Thread(target=dashboard.run,daemon=True).start()
     dist=Path(__file__).resolve().parent.parent/'dist'
     print(f'Dashboard: http://{args.bind}:{args.port}',flush=True)
-    ThreadingHTTPServer((args.bind,args.port),handler(dashboard,token,dist)).serve_forever()
+    try:
+        ThreadingHTTPServer((args.bind,args.port),handler(dashboard,token,dist)).serve_forever()
+    finally:
+        dashboard.close()
 
 if __name__=='__main__': main()

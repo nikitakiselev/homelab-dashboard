@@ -153,8 +153,11 @@ def gpus():
 
 
 class Collector:
-    def __init__(self, history):
+    def __init__(self, history, history_host=None):
         self.history = history
+        self.history_host = history_host
+        self.stop_event = threading.Event()
+        self.threads = []
         self.latest = None
         self.previous_cpu = None
         self.previous_net = None
@@ -223,12 +226,12 @@ class Collector:
                        'interfaces':[n['name'] for n in selected]}}
         self.latest = metrics
         if cpu is not None:
-            self.history.sample(self.agent_id,metrics,rx_delta,tx_delta)
+            self.history.sample(self.history_host or self.agent_id,metrics,rx_delta,tx_delta)
         self.error = None
 
     def hardware_loop(self, kind, interval):
         # SMART and GPU utilities may stall. They never block CPU/network sampling.
-        while True:
+        while not self.stop_event.is_set():
             try:
                 values = disks() if kind == 'disks' else gpus()
                 if kind == 'disks':
@@ -240,17 +243,31 @@ class Collector:
                 if kind == 'disks': self.disk_cache = []
                 else: self.gpu_cache = []
                 self.hardware_errors[kind] = str(error)
-            time.sleep(interval)
+            self.stop_event.wait(interval)
+
+    def start(self):
+        if self.threads:
+            return
+        for kind, interval in (("disks",60),("gpus",5)):
+            self.threads.append(threading.Thread(target=self.hardware_loop,args=(kind,interval),daemon=True))
+        self.threads.append(threading.Thread(target=self.run,daemon=True))
+        for thread in self.threads:
+            thread.start()
+
+    def stop(self):
+        self.stop_event.set()
+        for thread in self.threads:
+            thread.join(timeout=1)
 
     def run(self):
-        while True:
+        while not self.stop_event.is_set():
             started = time.monotonic()
             try:
                 self.collect()
             except Exception as e:
                 self.error = str(e)
                 print('Collection error:',type(e).__name__,str(e),flush=True)
-            time.sleep(max(1,5-(time.monotonic()-started)))
+            self.stop_event.wait(max(1,5-(time.monotonic()-started)))
 
 
 def main():
@@ -265,9 +282,7 @@ def main():
     if platform.system()!='Linux':
         parser.error('The collector requires Linux /proc and /sys')
     collector = Collector(History(args.data))
-    for kind, interval in (('disks',60),('gpus',5)):
-        threading.Thread(target=collector.hardware_loop,args=(kind,interval),daemon=True).start()
-    threading.Thread(target=collector.run,daemon=True).start()
+    collector.start()
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self):
             if not hmac.compare_digest(self.headers.get('Authorization',''),'Bearer '+token):

@@ -62,6 +62,30 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(restarted.hosts(),[])
         self.assertEqual(restarted.chart(hid,1),[])
 
+    def test_builtin_collector_is_local_and_not_removable(self):
+        with patch('homelab.server.platform.system',return_value='Linux'),patch('homelab.server.Collector') as collector:
+            collector.return_value.latest=self.metrics
+            collector.return_value.error=None
+            dashboard=Dashboard(Path(self.tmp.name)/'self.sqlite',monitor_self=True)
+            local=dashboard.public_hosts()[0]
+            self.assertTrue(local['local'])
+            self.assertEqual(local['id'],'local')
+            self.assertIsNone(local['port'])
+            self.assertTrue(local['online'])
+            collector.return_value.start.assert_called_once()
+            with self.assertRaises(ValueError): dashboard.delete('local')
+            dashboard.close()
+            collector.return_value.stop.assert_called_once()
+
+    def test_builtin_collector_prevents_duplicate_registration(self):
+        with patch('homelab.server.platform.system',return_value='Linux'),patch('homelab.server.Collector') as collector:
+            collector.return_value.agent_id=self.metrics['agent_id']
+            dashboard=Dashboard(Path(self.tmp.name)/'self.sqlite',monitor_self=True)
+            with self.assertRaisesRegex(ValueError,'встроенным'):
+                dashboard.add({'ip':'127.0.0.1','port':self.agent.server_port,'token':TOKEN})
+            self.assertEqual(dashboard.hosts(),[])
+            dashboard.close()
+
     def test_wrong_token_does_not_register(self):
         with self.assertRaises(HTTPError) as error: self.add('incorrect-but-long-enough-token')
         error.exception.close()

@@ -54,6 +54,17 @@ def main():
             assert dashboard.chart(hid,1),'Agent history did not reach dashboard'
             restored=Dashboard(data+'/dashboard.sqlite')
             assert restored.chart(hid,90),'Dashboard restart lost history'
+            builtin=Dashboard(data+'/builtin.sqlite',monitor_self=True)
+            try:
+                deadline=time.monotonic()+12
+                while time.monotonic()<deadline and not builtin.chart('local',1): time.sleep(.2)
+                own=builtin.public_hosts()[0]
+                assert own['local'] and own['online']
+                assert own['port'] is None
+                assert builtin.chart('local',1),'Built-in collector did not persist history'
+                print('PASS: central server collects its own Linux metrics without an external agent or agent port',flush=True)
+            finally:
+                builtin.close()
             print('PASS: real Linux CPU/memory/uptime, agent HTTP authorization, host registration, history sync and persistence',flush=True)
         finally:
             proc.terminate()
