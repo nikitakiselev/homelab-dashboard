@@ -29,7 +29,7 @@ export function DrawerContent({
         <DialogPrimitive.Close
           disabled={closeDisabled}
           aria-label="Закрыть панель"
-          className="absolute right-4 top-4 flex h-11 w-11 items-center justify-center rounded-xl text-zinc-500 transition-colors hover:bg-zinc-100 focus-visible:outline-blue-500 disabled:pointer-events-none disabled:opacity-40 sm:right-6 sm:top-5"
+          className="absolute right-4 top-4 flex h-11 w-11 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-zinc-100 focus-visible:outline-blue-500 disabled:pointer-events-none disabled:opacity-40 sm:right-6 sm:top-5"
         >
           <X size={20} />
         </DialogPrimitive.Close>

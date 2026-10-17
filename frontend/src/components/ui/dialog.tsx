@@ -23,7 +23,7 @@ export function DialogContent({
         {children}
         <DialogPrimitive.Close
           aria-label="Закрыть"
-          className="absolute right-5 top-5 rounded-full p-1 text-zinc-400 hover:bg-zinc-100 focus-visible:outline-blue-500"
+          className="absolute right-5 top-5 rounded-full p-1 text-muted-foreground hover:bg-zinc-100 focus-visible:outline-blue-500"
         >
           <X size={18} />
         </DialogPrimitive.Close>

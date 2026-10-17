@@ -2,16 +2,22 @@
 :root {
   font-family:
     -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif;
-  color: #242529;
+  color: #18181b;
   background: #f5f5f7;
   font-synthesis: none;
   font-weight: 400;
   -webkit-font-smoothing: antialiased;
   font-variant-numeric: tabular-nums;
   --background: #f5f5f7;
-  --foreground: #242529;
-  --primary: #007aff;
+  --foreground: #18181b;
+  --muted-foreground: #52525b;
+  --primary: #0066cc;
   --radius: 0.75rem;
+}
+@theme inline {
+  --color-foreground: var(--foreground);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-primary: var(--primary);
 }
 * {
   box-sizing: border-box;
@@ -38,26 +44,31 @@ button:focus-visible {
 }
 input {
   outline: none;
+  color: var(--foreground);
+}
+input::placeholder {
+  color: var(--muted-foreground);
+  opacity: 1;
 }
 input:focus {
   border-color: #007aff;
   box-shadow: 0 0 0 3px #007aff14;
 }
 .subtle {
-  color: #8a8c93;
+  color: var(--muted-foreground);
 }
 .eyebrow {
   font-size: 12px;
   letter-spacing: 0.1em;
   font-weight: 600;
   text-transform: uppercase;
-  color: #91939a;
+  color: var(--muted-foreground);
 }
 .recharts-wrapper:focus {
   outline: none;
 }
 .recharts-cartesian-axis-tick-value {
-  fill: #9699a2;
+  fill: var(--muted-foreground);
   font-size: 12px;
 }
 .recharts-tooltip-wrapper {
