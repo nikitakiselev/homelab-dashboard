@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { HardDrive } from "lucide-react";
-import { bytes, speed, type Host, type Point } from "../lib";
+import { HardDrive, Check } from "lucide-react";
+import { bytes, cn, speed, type Host, type Point } from "../lib";
 import { Card } from "./ui/card";
 import { HistoryChart, type HistoryPeriod } from "./resource-history";
 
@@ -20,13 +20,8 @@ export function DiskActivity({
   error: string;
 }) {
   const [selected, setSelected] = useState("");
-  const names = Array.from(
-    new Set([
-      ...(host.metrics?.disks.map((d) => d.name) || []),
-      ...Object.keys(host.metrics?.disk_io || {}),
-      ...records.flatMap((r) => Object.keys(r.disk_io || {})),
-    ]),
-  );
+  const disks = host.metrics?.disks || [];
+  const names = disks.map((d) => d.name);
   const name = names.includes(selected) ? selected : names[0] || "";
   const disk = host.metrics?.disks.find((d) => d.name === name);
   const current = host.online ? host.metrics?.disk_io?.[name] : undefined;
@@ -63,24 +58,60 @@ export function DiskActivity({
             За выбранный выше период · Счётчики Linux, без тестов диска
           </p>
         </div>
-        {names.length > 0 && (
-          <label className="flex items-center gap-2 text-sm text-muted-foreground">
-            Диск
-            <select
-              aria-label="Диск для истории ввода-вывода"
-              value={name}
-              onChange={(e) => setSelected(e.target.value)}
-              className="max-w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-foreground"
-            >
-              {names.map((n) => (
-                <option key={n} value={n}>
-                  /dev/{n}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
       </div>
+      {names.length > 0 && (
+        <div
+          role="group"
+          aria-label="Выбор накопителя"
+          className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3"
+        >
+          {names.map((n) => {
+            const device = disks.find((d) => d.name === n);
+            const active = n === name;
+            return (
+              <button
+                key={n}
+                type="button"
+                aria-pressed={active}
+                onClick={() => setSelected(n)}
+                className={cn(
+                  "flex min-w-0 cursor-pointer items-start gap-3 rounded-xl border p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500",
+                  active
+                    ? "border-blue-400 bg-blue-50/60"
+                    : "border-zinc-200 bg-white hover:border-zinc-300 hover:bg-zinc-50",
+                )}
+              >
+                <span
+                  className={cn(
+                    "rounded-lg p-2",
+                    active
+                      ? "bg-blue-100 text-blue-700"
+                      : "bg-zinc-100 text-muted-foreground",
+                  )}
+                >
+                  <HardDrive size={19} />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block break-words text-sm font-semibold">
+                    {device?.model || `/dev/${n}`}
+                  </span>
+                  <span className="mt-1 block text-xs text-muted-foreground">
+                    {device
+                      ? `${device.type} · ${bytes(device.total)}`
+                      : "Сведения о модели недоступны"}
+                  </span>
+                  <span className="mt-2 block font-mono text-xs text-muted-foreground">
+                    /dev/{n}
+                  </span>
+                </span>
+                {active && (
+                  <Check size={16} className="shrink-0 text-blue-700" />
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
       <Card className="min-w-0 p-5">
         <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
           <div>
@@ -144,7 +175,11 @@ export function DiskActivity({
             { key: "rx", label: "Чтение", color: "#2563eb" },
             { key: "tx", label: "Запись", color: "#059669" },
           ]}
-          emptyText="Нет истории ввода-вывода за этот период. Требуется Linux-агент с поддержкой /proc/diskstats и два последовательных замера."
+          emptyText={
+            name
+              ? "Нет истории ввода-вывода за этот период. Требуется Linux-агент с поддержкой /proc/diskstats и два последовательных замера."
+              : "Агент пока не передал сведения о накопителях."
+          }
         />
         <div className="mt-3 flex flex-wrap justify-between gap-2 border-t border-black/5 pt-3 text-xs text-muted-foreground">
           <div className="flex gap-4">
@@ -163,8 +198,7 @@ export function DiskActivity({
         </div>
         <p className="mt-3 text-xs leading-5 text-muted-foreground">
           Итоги учитывают только собранные интервалы. История до обновления
-          агента отсутствует. Диски и логические устройства показаны отдельно;
-          их значения могут пересекаться.
+          агента отсутствует.
         </p>
         {host.metrics?.diagnostics?.disk_io && (
           <p role="status" className="mt-3 text-sm text-orange-700">

@@ -105,6 +105,13 @@ export function ServerPage({
               >
                 {host.online ? "В сети" : "Недоступен"}
               </span>
+              <span className="rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs text-muted-foreground">
+                Версия {host.local ? "сборщика" : "агента"}:{" "}
+                <span className="font-mono font-medium text-foreground">
+                  {m?.agent_version || "Неизвестна"}
+                </span>
+                {!host.online && m?.agent_version && " · последняя известная"}
+              </span>
               {host.demo && <span className="text-xs text-blue-700">Демо</span>}
             </div>
             <p className="text-sm text-muted-foreground">
