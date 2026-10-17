@@ -13,7 +13,7 @@ flowchart LR
     end
     Server -->|"HTTP / TCP · :9108 · Bearer token"| Agent
     subgraph Remote["Удалённый Linux-хост"]
-        Agent["HTTP API агента"]
+        Agent["Go-агент · HTTP API"]
         Collector["Сборщик метрик"]
         AgentDB[("SQLite · история за 90 дней")]
         Collector -->|"По умолчанию 5 с"| AgentDB
@@ -54,19 +54,20 @@ sequenceDiagram
 ```mermaid
 flowchart TD
     UI["frontend · React / Tailwind / shadcn/ui"] -->|"HTTP API"| Server["homelab/server"]
-    Server -->|"Встроенный сборщик"| Agent["homelab/agent"]
+    Server -->|"Встроенный сборщик"| Builtin["homelab/server/collectors"]
+    Server -->|"HTTP API"| Agent["agent · Go"]
     Server --> Shared["homelab/shared"]
-    Agent --> Shared
     Deploy["install.sh и deploy/"] --> Server
     Deploy --> Agent
 ```
 
-- `homelab/agent/`: сбор метрик Linux, интервалы и HTTP API отдельного агента.
+- `agent/`: самостоятельный Go-модуль; сбор метрик Linux, CLI, YAML, SQLite и HTTP API.
+- `homelab/server/collectors/`: встроенный сбор центрального сервиса внутри процесса Python.
 - `homelab/server/`: центральный API, конфигурация хостов, опрос, синхронизация и архив агента.
-- `homelab/shared/`: SQLite и явный список файлов установочного пакета. Не импортирует агент или сервер.
+- `homelab/shared/`: SQLite и YAML центрального сервиса. Не импортирует агент или сервер.
 - `frontend/`: интерфейс; на удалённых агентах не нужен.
 - `deploy/`: установка и systemd-службы.
 
-Архив отдельного агента содержит только `agent`, `shared` и установочные файлы. Его независимость от центрального сервиса проверяется тестами.
+Архив агента содержит установщик и пример конфигурации. Установщик скачивает Go-бинарник из GitHub Releases; Python-код центрального сервиса и frontend на машину агента не копируются.
 
 Интервалы выше — значения по умолчанию. Частоту сбора, отдельный опрос GPU/SMART, выбор интерфейсов и срок хранения меняет [YAML-конфигурация](configuration.md). Центральный опрос и обновление браузера сейчас выполняются раз в 10 секунд.

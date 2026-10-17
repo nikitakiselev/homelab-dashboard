@@ -32,7 +32,7 @@ cmp /tmp/preserved-env /etc/homelab/dashboard.env
 cmp /tmp/preserved-yaml /etc/homelab/collector.yaml
 systemd-analyze verify /etc/systemd/system/homelab-dashboard.service
 printf 'PASS: server update preserved token, YAML and history; systemd unit validated\n'
-sh /repo/install.sh --source /repo --agent >/tmp/test-agent-install.log 2>&1
+HOMELAB_AGENT_BINARY=/repo/releases/homelab-agent_linux_amd64 sh /repo/install.sh --source /repo --agent >/tmp/test-agent-install.log 2>&1
 /usr/bin/python3 - <<'PY'
 from pathlib import Path
 import json

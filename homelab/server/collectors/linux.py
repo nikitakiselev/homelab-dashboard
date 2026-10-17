@@ -9,7 +9,7 @@ import subprocess
 import time
 from pathlib import Path
 from .runtime import SamplingRuntime
-from .. import __version__
+from ... import __version__
 
 
 def read(path, default=''):

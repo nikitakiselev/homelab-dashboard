@@ -1,6 +1,6 @@
 # Разработка
 
-Целевая платформа: Ubuntu 22.04+ и Debian 12+ с systemd. Для разработки нужны Python 3.10+, Node.js 22+ и npm.
+Целевая платформа: Ubuntu 22.04+ и Debian 12+ с systemd. Для центрального сервиса нужны Python 3.10+, Node.js 22+ и npm; для агента — Go (версия указана в `agent/go.mod`).
 
 ```sh
 python3 -m venv .venv
@@ -19,7 +19,9 @@ python3 -m homelab.server
 python3 -m unittest discover -s tests -v
 npm run build
 sh -n install.sh
-python3 -m homelab.agent --config deploy/agent.example.yaml --check-config
+cd agent
+go test -race ./...
+go build -o ../releases/homelab-agent ./cmd/homelab-agent
 ```
 
 В Linux дополнительно запускается `python3 tests/linux_smoke.py`: реальный сбор CPU/памяти, HTTP-агент, синхронизация, восстановление истории и встроенный сборщик. Тест не требует доступа к домашним серверам. SMART и GPU отдельно проверяются на физическом оборудовании; отсутствие соответствующего устройства в CI не доказывает его поддержку.
@@ -30,7 +32,8 @@ python3 -m homelab.agent --config deploy/agent.example.yaml --check-config
 
 ```text
 frontend/             React, Tailwind, shadcn/ui
-homelab/agent/        Сбор метрик Linux, расписание, HTTP API
+agent/                Go: Linux-агент, CLI, HTTP API и история
+homelab/server/collectors/ Встроенный сбор метрик центрального сервиса
 homelab/server/       Центральный API, опрос, синхронизация, архив агента
 homelab/shared/       SQLite, YAML и состав установочного пакета
 install.sh            Bootstrap для центрального сервиса или --agent
@@ -39,6 +42,6 @@ tests/                Модульные и интеграционные про�
 docs/                 Пользовательская и техническая документация
 ```
 
-`shared` не импортирует сервер или агент. Отдельный агент не импортирует центральный сервис; его архив проверяется отдельно от frontend.
+Go-агент — отдельный модуль `agent/go.mod`. Сборка без CGo: `CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build ./cmd/homelab-agent` из `agent/`. Python-сборщики в `homelab/server/collectors/` обслуживают только встроенный сбор центрального сервиса; они не устанавливаются на машины агентов. Для Linux smoke-теста сначала соберите бинарник в `releases/homelab-agent_linux_amd64` либо задайте `HOMELAB_AGENT_BINARY`. GitHub Actions собирает обе архитектуры по тегу `agent-vX.Y.Z`, публикуя бинарники и SHA256SUMS в Releases.
 
 Интеграционная проверка bootstrap-установщика и границы её достоверности описаны в [installer-testing.md](installer-testing.md).

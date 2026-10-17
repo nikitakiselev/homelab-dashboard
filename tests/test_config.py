@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from homelab.shared.config import load_config
 from homelab.shared.storage import History
-from homelab.agent.linux import Collector
+from homelab.server.collectors.linux import Collector
 from homelab.server.app import validate_metrics, demo_metrics
 
 

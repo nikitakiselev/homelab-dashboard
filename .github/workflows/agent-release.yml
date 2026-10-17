@@ -1,0 +1,32 @@
+name: Agent release
+on:
+  push:
+    tags: ["agent-v*"]
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: agent/go.mod
+          cache-dependency-path: agent/go.sum
+      - run: go test -race ./...
+        working-directory: agent
+      - name: Build Linux binaries
+        working-directory: agent
+        env:
+          CGO_ENABLED: "0"
+        run: |
+          version="${GITHUB_REF_NAME#agent-v}"
+          for arch in amd64 arm64; do
+            GOOS=linux GOARCH="$arch" go build -trimpath -ldflags="-s -w -X github.com/nikitakiselev/homelab-dashboard/agent/internal/agent.Version=$version" -o "../releases/homelab-agent_linux_$arch" ./cmd/homelab-agent
+          done
+          cd ../releases
+          sha256sum homelab-agent_linux_* > SHA256SUMS
+      - name: Publish release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" releases/homelab-agent_linux_* releases/SHA256SUMS --title "Agent ${GITHUB_REF_NAME#agent-v}" --generate-notes

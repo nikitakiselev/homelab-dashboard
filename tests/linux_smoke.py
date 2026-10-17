@@ -1,5 +1,6 @@
 """Real Linux collector + HTTP + persisted history smoke test; no host privileges."""
 import json
+import hashlib
 import os
 from pathlib import Path
 import socket
@@ -11,8 +12,9 @@ from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
 
 sys.path.insert(0,str(Path(__file__).resolve().parent.parent))
-from homelab.server.app import Dashboard
-from homelab import __version__
+from homelab.server.app import Dashboard, demo_metrics
+from homelab.shared.storage import History
+AGENT_VERSION="0.2.0"
 
 
 def main():
@@ -21,9 +23,13 @@ def main():
         with socket.socket() as reservation:
             reservation.bind(('127.0.0.1',0))
             port=reservation.getsockname()[1]
-        proc=subprocess.Popen([sys.executable,'-m','homelab.agent','--bind','127.0.0.1',
-                               '--port',str(port),'--data',data+'/agent.sqlite'],
-                              env={**os.environ,'HOMELAB_AGENT_TOKEN':token})
+        binary=os.environ.get('HOMELAB_AGENT_BINARY',str(Path(__file__).resolve().parent.parent/'releases/homelab-agent_linux_amd64'))
+        config=Path(data)/'agent.yaml'
+        config.write_text(f'server:\n  bind: 127.0.0.1\n  port: {port}\nhistory:\n  path: {data}/agent.sqlite\n')
+        agent_id=hashlib.sha256(Path('/etc/machine-id').read_text().strip().encode()).hexdigest()[:24] if Path('/etc/machine-id').exists() else hashlib.sha256(socket.gethostname().encode()).hexdigest()[:24]
+        old=demo_metrics(0);old['timestamp']=time.time()-600
+        History(data+'/agent.sqlite').sample(agent_id,old,123,456)
+        proc=subprocess.Popen([binary,'run','--config',str(config)],env={**os.environ,'HOMELAB_AGENT_TOKEN':token})
         try:
             base=f'http://127.0.0.1:{port}'
             deadline=time.monotonic()+25
@@ -40,7 +46,13 @@ def main():
             assert metrics['memory']['total']>0
             assert 0<=metrics['memory']['percent']<=100
             assert metrics['uptime']>0
-            assert metrics['agent_version']==__version__
+            assert metrics['agent_version']==AGENT_VERSION
+            assert metrics['agent_id']==agent_id,'Migration changed machine identity'
+            with urlopen(Request(base+'/v1/history?since=0',headers={'Authorization':'Bearer '+token})) as response:
+                assert any(r['rx_bytes']==123 for r in json.load(response)['records']),'Go agent lost Python history'
+            conflict=subprocess.run([binary,'run','--config',str(config)],env={**os.environ,'HOMELAB_AGENT_TOKEN':token},capture_output=True,text=True,timeout=5)
+            assert conflict.returncode!=0 and 'already in use' in conflict.stderr,'Port collision not reported'
+
             try:
                 urlopen(base+'/v1/metrics',timeout=2)
                 raise AssertionError('Agent allowed unauthenticated access')
@@ -53,10 +65,10 @@ def main():
             deadline=time.monotonic()+15
             while time.monotonic()<deadline and not dashboard.chart(hid,1): time.sleep(.1)
             assert dashboard.public_hosts()[0]['online']
-            assert dashboard.public_hosts()[0]['metrics']['agent_version']==__version__
+            assert dashboard.public_hosts()[0]['metrics']['agent_version']==AGENT_VERSION
             assert dashboard.chart(hid,1),'Agent history did not reach dashboard'
             restored=Dashboard(data+'/dashboard.sqlite')
-            assert restored.public_hosts()[0]['metrics']['agent_version']==__version__
+            assert restored.public_hosts()[0]['metrics']['agent_version']==AGENT_VERSION
             assert restored.chart(hid,90),'Dashboard restart lost history'
             builtin=Dashboard(data+'/builtin.sqlite',monitor_self=True)
             try:

@@ -1493,7 +1493,8 @@ function AddServer({
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
     [copied, setCopied] = useState(false);
-  const cmd = "sudo python3 deploy/install_agent.py";
+  const cmd =
+    "curl -fsSL https://raw.githubusercontent.com/nikitakiselev/homelab-dashboard/main/install.sh | sudo sh -s -- --agent";
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
@@ -1585,8 +1586,8 @@ function AddServer({
               Агент ещё не запущен?
             </div>
             <p className="mb-2 text-[12px] leading-4 text-zinc-400">
-              Скачайте архив, перенесите на Linux-хост и распакуйте. Из каталога
-              homelab-agent запустите установщик. Токен будет в
+              Выполните команду на Linux-хосте или установите агент из архива.
+              Установщик скачает готовый Go-бинарник. Токен будет в
               /etc/homelab/agent.env.
             </p>
             <Button

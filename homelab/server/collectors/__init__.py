@@ -1,4 +1,4 @@
-"""Standalone and embedded metric collectors."""
+"""In-process metric collectors used only by the central service."""
 import platform
 from .linux import Collector
 

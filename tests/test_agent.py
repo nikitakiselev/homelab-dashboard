@@ -4,10 +4,9 @@ from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
-from homelab.agent.linux import Collector, disks, intel_gpu_sample
+from homelab.server.collectors.linux import Collector, disks, intel_gpu_sample
 from homelab.server.bundle import agent_archive, FILES
 from homelab.shared.storage import History
-from deploy.install_agent import environment
 import tarfile
 
 
@@ -27,7 +26,7 @@ class CollectorTests(unittest.TestCase):
                     '/proc/cpuinfo':'model name: Test CPU',
                     '/etc/os-release':'PRETTY_NAME="Ubuntu fixture"',
                 }.get(str(path),default)
-            with patch('homelab.agent.linux.read',side_effect=fixture),patch.dict('os.environ',{'HOMELAB_INTERFACES':'eth0'}),patch('homelab.agent.linux.time.monotonic',side_effect=[100,105,110]):
+            with patch('homelab.server.collectors.linux.read',side_effect=fixture),patch.dict('os.environ',{'HOMELAB_INTERFACES':'eth0'}),patch('homelab.server.collectors.linux.time.monotonic',side_effect=[100,105,110]):
                 collector=Collector(history)
                 collector.collect()
                 self.assertIsNone(collector.latest['cpu']['usage'])
@@ -48,7 +47,7 @@ class CollectorTests(unittest.TestCase):
             collector=Collector(History(Path(temp)/'agent.sqlite'))
             def fixture(path,default=''):
                 return {'/proc/stat':'cpu 1 0 0 9 0 0 0 0','/proc/meminfo':'MemTotal: 1 kB\nMemAvailable: 1 kB','/proc/net/dev':'a\nb','/proc/uptime':'1 1'}.get(str(path),default)
-            with patch('homelab.agent.linux.read',side_effect=fixture),patch.dict('os.environ',{'HOMELAB_INTERFACES':'missing0'}):
+            with patch('homelab.server.collectors.linux.read',side_effect=fixture),patch.dict('os.environ',{'HOMELAB_INTERFACES':'missing0'}):
                 collector.collect()
                 self.assertIn('missing0',collector.latest['diagnostics']['network'])
 
@@ -59,12 +58,12 @@ class CollectorTests(unittest.TestCase):
                ({'smart_status':{'passed':False},'nvme_smart_health_information_log':{'critical_warning':1}},'failed'),
                ({'smart_status':{'passed':True},'ata_smart_attributes':{'table':[{'id':197,'raw':{'value':1}}]}},'warning')]
         for smart, expected in cases:
-            with self.subTest(expected=expected),patch('homelab.agent.linux.shutil.which',return_value='/usr/sbin/smartctl'),patch('homelab.agent.linux.command',side_effect=lambda args:json.dumps(block if args[0]=='lsblk' else smart)):
+            with self.subTest(expected=expected),patch('homelab.server.collectors.linux.shutil.which',return_value='/usr/sbin/smartctl'),patch('homelab.server.collectors.linux.command',side_effect=lambda args:json.dumps(block if args[0]=='lsblk' else smart)):
                 self.assertEqual(disks()[0]['health'],expected)
 
     def test_intel_gpu_uses_busiest_engine_without_invented_vram(self):
         sample=[{'engines':{'Render/3D':{'busy':17.5},'Video':{'busy':62.0}}}]
-        with patch('homelab.agent.linux.shutil.which',return_value='/usr/bin/intel_gpu_top'),patch('homelab.agent.linux.subprocess.Popen') as spawn:
+        with patch('homelab.server.collectors.linux.shutil.which',return_value='/usr/bin/intel_gpu_top'),patch('homelab.server.collectors.linux.subprocess.Popen') as spawn:
             spawn.return_value.communicate.return_value=(json.dumps(sample),'')
             gpu=intel_gpu_sample(Path('/sys/class/drm/card1'))
         self.assertEqual(gpu['usage'],62.0)
@@ -72,19 +71,10 @@ class CollectorTests(unittest.TestCase):
         self.assertTrue(gpu['shared_memory'])
 
     def test_intel_gpu_missing_counters_are_not_zero_load(self):
-        with patch('homelab.agent.linux.shutil.which',return_value='/usr/bin/intel_gpu_top'),patch('homelab.agent.linux.subprocess.Popen') as spawn:
+        with patch('homelab.server.collectors.linux.shutil.which',return_value='/usr/bin/intel_gpu_top'),patch('homelab.server.collectors.linux.subprocess.Popen') as spawn:
             spawn.return_value.communicate.return_value=('[]','PMU unavailable')
             with self.assertRaisesRegex(RuntimeError,'PMU unavailable'):
                 intel_gpu_sample(Path('/sys/class/drm/card1'))
-
-    def test_installer_keeps_existing_credentials(self):
-        token='preserve-this-existing-test-token'
-        first=environment(f'HOMELAB_AGENT_TOKEN={token}\nHOMELAB_INTERFACES=eth0\n',9109,None)
-        self.assertIn('HOMELAB_AGENT_TOKEN='+token,first)
-        self.assertIn('HOMELAB_INTERFACES=eth0',first)
-        self.assertIn('HOMELAB_AGENT_PORT=9109',first)
-        self.assertIn('HOMELAB_INTERFACES=eth1',environment(first,9109,'eth1'))
-        with self.assertRaises(ValueError): environment('',9108,'eth0;bad')
 
     def test_archive_contains_only_agent_sources(self):
         with tarfile.open(fileobj=io.BytesIO(agent_archive()),mode='r:gz') as archive:

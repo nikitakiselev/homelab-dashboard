@@ -29,7 +29,7 @@ history:
 | `network.interfaces` | Список интерфейсов; пустой список включает автоматический выбор |
 | `history.retention_days` | От 1 до 3650 дней; по умолчанию 90 |
 | `history.path` | SQLite отдельного агента; относительный путь считается от каталога YAML |
-| `server.bind`, `server.port` | Адрес и порт отдельного агента |
+| `server.bind`, `server.port` | Адрес и порт отдельного агента (порт 1–65535; по умолчанию 9108) |
 
 Для встроенного сборщика `server` и `history.path` не используются: отдельный HTTP-сервер не запускается, данные пишутся в базу центрального сервиса. Срок хранения встроенного сборщика применяется к общей центральной базе. UI сейчас показывает периоды 24 часа и 90 дней, даже если агент хранит дольше. База центрального сервиса по умолчанию хранит 90 дней; изменение хранения на удалённом агенте не меняет центральную политику.
 
@@ -38,11 +38,11 @@ history:
 ## Проверка и применение
 
 ```sh
-python3 -m homelab.agent --config /etc/homelab/agent.yaml --check-config
-sudo systemctl restart homelab-agent
+sudo homelab-agent check-config --config /etc/homelab/agent.yaml
+sudo homelab-agent restart
 ```
 
-Для встроенного сборщика проверьте `collector.yaml` той же командой и перезапустите `homelab-dashboard`. Горячей перезагрузки YAML пока нет. Ошибочные, неизвестные и повторяющиеся ключи отклоняются до запуска. Токен в YAML не принимается.
+Для встроенного сборщика проверьте `collector.yaml` командой `homelab-agent check-config --config /etc/homelab/collector.yaml` и перезапустите `homelab-dashboard`. Горячей перезагрузки YAML пока нет. Ошибочные, неизвестные и повторяющиеся ключи отклоняются до запуска. Токен в YAML не принимается.
 
 По умолчанию systemd разрешает запись в каталог состояния службы. Если меняете путь SQLite за пределы `/var/lib/homelab-agent`, повторите установку агента: установщик создаст каталог и обновит `ReadWritePaths` службы.
 
@@ -52,13 +52,15 @@ sudo systemctl restart homelab-agent
 2. `HOMELAB_INTERFACES`, если задан, перекрывает `network.interfaces` для совместимости с прежней настройкой.
 3. YAML перекрывает встроенные значения по умолчанию.
 
-`HOMELAB_AGENT_TOKEN` и `HOMELAB_DASHBOARD_TOKEN` хранятся в env-файлах с правами 0600. GitHub-токен загрузки исходников не является токеном мониторинга и не сохраняется службами.
+`HOMELAB_AGENT_TOKEN` и `HOMELAB_DASHBOARD_TOKEN` хранятся в env-файлах с правами 0600.
 
 Для локального запуска:
 
 ```sh
-python3 -m homelab.agent --config ./my-agent.yaml
+sudo homelab-agent run --config ./my-agent.yaml
 python3 -m homelab.server --collector-config ./my-collector.yaml
 ```
 
 Без YAML используются значения по умолчанию; парсер PyYAML устанавливается из `requirements.txt` или системного пакета `python3-yaml`.
+
+При смене порта перезапустите агент и укажите новый порт при добавлении хоста в дашборд. Если порт занят, запуск завершится с ошибкой; другой порт автоматически не выбирается.

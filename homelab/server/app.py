@@ -18,7 +18,7 @@ from urllib.parse import urlparse, parse_qs
 from urllib.request import Request, build_opener, HTTPRedirectHandler, ProxyHandler
 from ..shared.storage import History, RETENTION
 from .bundle import agent_archive
-from ..agent import create_collector
+from .collectors import create_collector
 from ..shared.config import load_config
 
 class NoRedirect(HTTPRedirectHandler):

@@ -8,7 +8,7 @@ import re
 import subprocess
 import time
 from .runtime import SamplingRuntime
-from .. import __version__
+from ... import __version__
 
 
 def command(args):

@@ -12,7 +12,7 @@ usage() {
     cat <<'HELP'
 Usage: sh install.sh [--agent] [--ref REF] [--source DIRECTORY]
   --agent             Install only the Linux agent (no Node.js or frontend)
-  --ref REF           GitHub branch/tag/commit (default: main)
+  --ref REF           Server: Git ref; agent: agent-vX.Y.Z (default: latest release)
   --source DIRECTORY  Install from an existing checkout, without downloading it
   --help              Show this help without modifying the computer
 HELP
@@ -41,6 +41,16 @@ case " ${ID:-} ${ID_LIKE:-} " in *debian*|*ubuntu*) ;; *) fail 'Supported system
 command -v apt-get >/dev/null 2>&1 || fail 'apt-get is required.'
 command -v systemctl >/dev/null 2>&1 || fail 'systemd is required.'
 [ -d /run/systemd/system ] || fail 'systemd must be running (including inside LXC).'
+if [ "$ROLE" = agent ]; then
+    if [ -n "$SOURCE" ]; then
+        exec sh "$SOURCE/deploy/install_agent.sh" "$REF"
+    fi
+    agent_bootstrap=$(mktemp /tmp/homelab-agent-bootstrap.XXXXXXXX)
+    trap 'rm -f -- "$agent_bootstrap"' EXIT
+    curl -fsSL --retry 3 --proto '=https' --tlsv1.2 https://raw.githubusercontent.com/nikitakiselev/homelab-dashboard/main/deploy/install_agent.sh -o "$agent_bootstrap"
+    sh "$agent_bootstrap" "$REF"
+    exit 0
+fi
 export DEBIAN_FRONTEND=noninteractive
 printf 'Installing prerequisites for homelab-dashboard (%s)...\n' "$ROLE"
 apt-get update -qq
@@ -69,15 +79,11 @@ else
     SOURCE=$(cd "$SOURCE" && pwd)
 fi
 unset HOMELAB_GITHUB_TOKEN GH_TOKEN GITHUB_TOKEN
-if [ ! -f "$SOURCE/deploy/install_agent.py" ] || [ ! -f "$SOURCE/homelab/agent/api.py" ]; then
+if [ ! -f "$SOURCE/homelab/server/app.py" ]; then
     fail 'Source checkout is incomplete.'
 fi
 if [ "$ROLE" = server ]; then
     [ -f "$SOURCE/homelab/server/app.py" ] || fail 'Central server source is missing.'
-fi
-if [ "$ROLE" = agent ]; then
-    python3 "$SOURCE/deploy/install_agent.py"
-    exit 0
 fi
 
 apt-get install -y --no-install-recommends xz-utils util-linux smartmontools sudo

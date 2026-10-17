@@ -7,9 +7,8 @@ Wants=network-online.target
 Type=simple
 # Root permits smartctl to read health from physical disks. No management commands are exposed.
 User=root
-WorkingDirectory=/opt/homelab-dashboard
 EnvironmentFile=/etc/homelab/agent.env
-ExecStart=/usr/bin/python3 -m homelab.agent --config /etc/homelab/agent.yaml
+ExecStart=/usr/local/bin/homelab-agent run --config /etc/homelab/agent.yaml
 Restart=on-failure
 RestartSec=5
 StateDirectory=homelab-agent
