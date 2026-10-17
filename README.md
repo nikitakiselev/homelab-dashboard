@@ -1,48 +1,50 @@
 # homelab-dashboard
 
-Дашборд для мониторинга домашних серверов: CPU, GPU, память, накопители, SMART и сеть.
+**English** · [Русский](README.ru.md)
 
-**Статус:** ранняя разработка. API, конфигурация и установка могут меняться. Проект предназначен для доверенной LAN/VPN; встроенного TLS пока нет.
+A dashboard for monitoring home servers: CPU, GPU, memory, storage, SMART health, and network traffic.
 
-[Документация](docs/README.md) · [Проверки CI](https://github.com/nikitakiselev/homelab-dashboard/actions/workflows/checks.yml) · [Сообщить об ошибке](https://github.com/nikitakiselev/homelab-dashboard/issues)
+**Status:** early development. APIs, configuration, and installation may change. Intended for trusted LAN/VPN environments; built-in TLS is not available yet. The interface and detailed documentation are currently in Russian.
 
-## Возможности
+[Documentation (Russian)](docs/README.md) · [CI checks](https://github.com/nikitakiselev/homelab-dashboard/actions/workflows/checks.yml) · [Report an issue](https://github.com/nikitakiselev/homelab-dashboard/issues)
 
-- Центральный сервис со встроенным сборщиком: для одного компьютера отдельный агент не нужен.
-- Добавление других Linux-хостов по IP и токену.
-- CPU, память, поддерживаемые GPU, uptime и доступность машин.
-- HDD/SSD/NVMe: ёмкость, занятое пространство, температура и SMART.
-- Приём и передача по сети, графики за сутки и 90 дней.
-- История хранится на агенте и догружается после отключения центрального сервиса.
-- YAML-конфиг для интервалов сбора, интерфейсов и хранения истории.
+## Features
 
-## Установка
+- Central service with a built-in collector: a single computer needs no separate agent.
+- Connect additional Linux hosts using an IP address and token.
+- CPU, memory, supported GPUs, uptime, and host availability.
+- HDD/SSD/NVMe capacity, used space, temperature, and SMART health.
+- Network receive/transmit rates and charts covering 24 hours or 90 days.
+- Agents retain history locally and synchronize it after the central service reconnects.
+- YAML configuration for collection intervals, network interfaces, and history retention.
 
-Автоматический установщик рассчитан на Debian 12+ и Ubuntu 22.04+ с работающим systemd. Поддерживаются x86_64 и ARM64. При установке в контейнер сборщик видит доступные контейнеру ресурсы; для мониторинга физического оборудования агент устанавливается на хост.
+## Installation
 
-> Репозиторий пока приватный. Команды ниже заработают без авторизации после его публикации. Для текущего приватного доступа используйте [установку из клона](docs/installation.md#приватный-репозиторий).
+The automatic installer targets Debian 12+ and Ubuntu 22.04+ with a running systemd instance. Supported architectures are x86_64 and ARM64. Inside a container, the collector sees resources available to that container; install an agent on the host to monitor physical hardware.
 
-**Центральный сервис со встроенным сборщиком:**
+> This repository is currently private. The commands below will work without authentication once it is public. For current access, follow the [private clone installation instructions (Russian)](docs/installation.md#приватный-репозиторий).
+
+**Central service with the built-in collector:**
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/nikitakiselev/homelab-dashboard/main/install.sh | sudo sh
 ```
 
-**Только агент на другой Linux-машине:**
+**Agent only, on another Linux machine:**
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/nikitakiselev/homelab-dashboard/main/install.sh | sudo sh -s -- --agent
 ```
 
-Установщик проверяет систему, устанавливает зависимости, настраивает автозапуск и проверяет HTTP API. Для центрального сервиса он также собирает интерфейс. В конце выводятся адрес и токен доступа. Повторный запуск обновляет код, сохраняя настройки и SQLite-историю. Если новый центральный сервис не проходит проверку, восстанавливается предыдущая версия кода и службы.
+The installer checks the system, installs dependencies, configures automatic startup, and verifies the HTTP API. For the central service, it also builds the interface. It prints the address and access token when finished. Running it again updates the code while preserving configuration and SQLite history. If the updated central service fails its health check, the installer restores the previous code and service configuration.
 
-После установки агента в дашборде нажмите **«Добавить сервер»**, введите его IP и выведенный токен. Node.js и frontend на агенте не нужны.
+After installing an agent, click **«Добавить сервер»** in the dashboard and enter its IP address and the token printed by the installer. Agents do not need Node.js or frontend files.
 
-Подробности: [установка и обновление](docs/installation.md) · [настройка YAML](docs/configuration.md).
+Details (Russian): [installation and updates](docs/installation.md) · [YAML configuration](docs/configuration.md).
 
-## Локальный запуск
+## Local development
 
-Требования: Python 3.10+, Node.js 22+ и npm. Из клона репозитория:
+Requirements: Python 3.10+, Node.js 22+, and npm. From a cloned repository:
 
 ```sh
 python3 -m venv .venv
@@ -53,34 +55,36 @@ npm run build
 python3 -m homelab.server
 ```
 
-Откройте [localhost:8080](http://127.0.0.1:8080). Компьютер, на котором запущен центральный сервис, появится автоматически. Флаг `--demo` дополнительно показывает явно помеченные синтетические данные.
+Open [localhost:8080](http://127.0.0.1:8080). The computer running the central service appears automatically. Add `--demo` to display explicitly labeled synthetic data alongside real hosts.
 
-## Архитектура
+## Architecture
 
 ```mermaid
 flowchart LR
-    UI["Браузер"] --> Server["Центральный сервис + встроенный сборщик"]
+    UI["Browser"] --> Server["Central service + built-in collector"]
     Server --> DB[("SQLite")]
-    Server -->|"HTTP/TCP · токен"| Agents["Агенты других хостов"]
-    Agents --> History[("Локальная история каждого агента")]
+    Server -->|"HTTP/TCP · token"| Agents["Agents on other hosts"]
+    Agents --> History[("Local history on each agent")]
 ```
 
-[Подробная архитектура](docs/architecture.md) · [метрики и ограничения](docs/metrics.md).
+[Detailed architecture (Russian)](docs/architecture.md) · [metrics and limitations (Russian)](docs/metrics.md).
 
-## Документация
+## Documentation
 
-- [Установка, обновление и резервирование](docs/installation.md)
-- [Конфигурация сборщиков](docs/configuration.md)
-- [Разработка и проверки](docs/development.md)
-- [Архитектура и границы компонентов](docs/architecture.md)
-- [Метрики, совместимость и ограничения](docs/metrics.md)
+Detailed documentation is currently available in Russian:
 
-## Помощь и участие
+- [Installation, updates, and backups](docs/installation.md)
+- [Collector configuration](docs/configuration.md)
+- [Development and checks](docs/development.md)
+- [Architecture and component boundaries](docs/architecture.md)
+- [Metrics, compatibility, and limitations](docs/metrics.md)
 
-Ошибки и предложения — через [GitHub Issues](https://github.com/nikitakiselev/homelab-dashboard/issues). Порядок подготовки изменений описан в [CONTRIBUTING.md](CONTRIBUTING.md). Для сообщений об уязвимостях используйте [SECURITY.md](SECURITY.md).
+## Support and contributing
 
-Проект поддерживает [Никита Киселёв](https://github.com/nikitakiselev). Правила общения — в [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
+Use [GitHub Issues](https://github.com/nikitakiselev/homelab-dashboard/issues) for bugs and feature requests. See [CONTRIBUTING.md (Russian)](CONTRIBUTING.md) for the contribution workflow and [SECURITY.md (Russian)](SECURITY.md) for vulnerability reporting.
 
-## Лицензия
+Maintained by [Nikita Kiselev](https://github.com/nikitakiselev). Community guidelines are in [CODE_OF_CONDUCT.md (Russian)](CODE_OF_CONDUCT.md).
 
-Лицензия пока не выбрана; файла `LICENSE` нет. Проект ещё не оформлен как open source. Лицензия будет добавлена отдельным решением владельца.
+## License
+
+A license has not been selected; there is no `LICENSE` file yet. The project is not currently licensed as open source. A license will be added following the owner's decision.
