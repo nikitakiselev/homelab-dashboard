@@ -33,6 +33,17 @@ def install_sources(source,target):
         (target/'homelab/storage.py').unlink(missing_ok=True)
 
 
+
+def install_cli(target, destination=Path('/usr/local/bin/homelab-agent')):
+    destination.parent.mkdir(parents=True,exist_ok=True)
+    # Resolve imports independently of the caller's working directory.
+    launcher='#!/usr/bin/python3\nimport sys\nsys.path.insert(0, '+repr(str(target.resolve()))+')\nfrom homelab.agent.api import main\nmain()\n'
+    temporary=destination.with_name(destination.name+'.next')
+    temporary.write_text(launcher)
+    temporary.chmod(0o755)
+    temporary.replace(destination)
+
+
 def run(*args):
     subprocess.run(args, check=True)
 
@@ -112,6 +123,7 @@ def main():
     target = Path('/opt/homelab-dashboard')
     target.mkdir(parents=True, exist_ok=True)
     install_sources(source,target)
+    install_cli(target)
     env_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     # Create private file atomically. An update keeps the token and interface settings.
     temporary = env_path.with_suffix('.tmp')
@@ -154,6 +166,7 @@ def main():
         time.sleep(1)
     print(f'Agent installed, service active, API verified on port {port}.')
     print('Agent token: '+dict(line.split('=',1) for line in content.splitlines() if '=' in line)['HOMELAB_AGENT_TOKEN'])
+    print('CLI: homelab-agent version | homelab-agent run --help')
     print('Config: /etc/homelab/agent.yaml')
     print('Credentials: /etc/homelab/agent.env (root only; existing token preserved).')
     print('History: /var/lib/homelab-agent/agent.sqlite (preserved on update).')

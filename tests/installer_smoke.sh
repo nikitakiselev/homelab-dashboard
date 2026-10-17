@@ -44,4 +44,7 @@ assert Path('/etc/homelab/agent.yaml').is_file()
 assert not Path('/opt/homelab-dashboard/homelab/server').exists()
 print('PASS: lightweight agent installer, YAML and real authenticated metrics API; no server code copied')
 PY
+cd /tmp
+homelab-agent version
+homelab-agent run --help >/dev/null
 systemd-analyze verify /etc/systemd/system/homelab-agent.service

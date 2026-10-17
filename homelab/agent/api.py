@@ -4,6 +4,7 @@ import hmac
 import json
 import os
 import platform
+import sys
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
@@ -14,15 +15,19 @@ from . import create_collector
 from .. import __version__
 
 
-def main():
-    parser = argparse.ArgumentParser()
+def main(argv=None):
+    argv=list(sys.argv[1:] if argv is None else argv)
+    if argv and argv[0]=='version':argv=['--version',*argv[1:]]
+    elif argv and argv[0]=='run':argv=argv[1:]
+    parser = argparse.ArgumentParser(description='Homelab Linux metrics agent',
+        epilog='Commands: version — print version; run [options] — start collector. Flags without a command also start the collector.')
     parser.add_argument('--version',action='version',version='homelab-agent '+__version__)
     parser.add_argument('--bind',default=None)
     parser.add_argument('--port',type=int,default=None)
     parser.add_argument('--data',default=None)
     parser.add_argument('--config',type=Path)
     parser.add_argument('--check-config',action='store_true')
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     config_path=args.config or (Path('/etc/homelab/agent.yaml') if Path('/etc/homelab/agent.yaml').exists() else None)
     try:config=load_config(config_path)
     except ValueError as error:parser.error(str(error))

@@ -1,11 +1,26 @@
 from pathlib import Path
 from types import SimpleNamespace
+import subprocess
+import sys
 import tempfile
 import unittest
 from deploy.install_server import activate_release, environment
+from deploy.install_agent import install_cli
+from homelab import __version__
 
 
 class InstallerTests(unittest.TestCase):
+    def test_agent_command_from_another_directory(self):
+        with tempfile.TemporaryDirectory() as temp:
+            launcher=Path(temp)/'bin/homelab-agent'
+            install_cli(Path(__file__).resolve().parent.parent,launcher)
+            self.assertTrue(launcher.stat().st_mode & 0o111)
+            for args in (['version'],['--version']):
+                result=subprocess.run([sys.executable,str(launcher),*args],cwd=temp,capture_output=True,text=True,check=True)
+                self.assertEqual(result.stdout.strip(),'homelab-agent '+__version__)
+            result=subprocess.run([sys.executable,str(launcher),'run','--help'],cwd=temp,capture_output=True,text=True,check=True)
+            self.assertIn('--config',result.stdout)
+
     def test_existing_token_and_port_survive_update(self):
         token='existing-token-that-must-be-kept'
         contents,actual,port=environment('HOMELAB_DASHBOARD_TOKEN='+token+'\nHOMELAB_DASHBOARD_PORT=8123\n')
