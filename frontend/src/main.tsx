@@ -37,7 +37,6 @@ import {
   Trash2,
   Terminal,
   Command,
-  Activity,
   LogOut,
 } from "lucide-react";
 import { Button } from "./components/ui/button";
@@ -265,20 +264,6 @@ function App({ view }: { view: View }) {
           ))}
         </nav>
         <div className="mt-auto">
-          <div className="mb-5 rounded-xl border border-white/80 bg-white/45 p-3">
-            <div className="flex items-center gap-2 text-[14px] font-medium">
-              <span
-                className={cn(
-                  "h-1.5 w-1.5 rounded-full",
-                  error ? "bg-orange-400" : "bg-emerald-500",
-                )}
-              />
-              {error ? "Нет связи с сервисом" : "Центральный сервис"}
-            </div>
-            <p className="mt-1.5 mb-0 pl-3.5 text-[12px] text-muted-foreground">
-              Сбор метрик активен
-            </p>
-          </div>
           <button
             onClick={() => setHelp(true)}
             className="flex items-center gap-2.5 px-3 py-2 text-sm text-muted-foreground hover:text-zinc-800 cursor-pointer"
