@@ -37,7 +37,7 @@ case "$REF" in ''|*[!a-zA-Z0-9._/-]*) fail 'Invalid GitHub ref' ;; esac
 [ -r /etc/os-release ] || fail 'Cannot determine the Linux distribution.'
 # shellcheck disable=SC1091
 . /etc/os-release
-case " ${ID:-} ${ID_LIKE:-} " in *debian*|*ubuntu*) ;; *) fail 'Supported systems: Debian, Ubuntu and Debian-based Proxmox hosts.' ;; esac
+case " ${ID:-} ${ID_LIKE:-} " in *debian*|*ubuntu*) ;; *) fail 'Supported systems: Debian and Ubuntu.' ;; esac
 command -v apt-get >/dev/null 2>&1 || fail 'apt-get is required.'
 command -v systemctl >/dev/null 2>&1 || fail 'systemd is required.'
 [ -d /run/systemd/system ] || fail 'systemd must be running (including inside LXC).'
@@ -50,18 +50,12 @@ WORKDIR=$(mktemp -d /tmp/homelab-install.XXXXXXXX)
 chmod 755 "$WORKDIR"
 
 fetch() {
-    if [ -n "${HOMELAB_GITHUB_TOKEN:-}" ]; then
-        # Keep the token out of command arguments, files and logs.
-        printf 'header = "Authorization: Bearer %s"\n' "$HOMELAB_GITHUB_TOKEN" |
-            curl --config - --fail --silent --show-error --location --retry 3 --proto '=https' --tlsv1.2 "$1" --output "$2"
-    else
-        curl --fail --silent --show-error --location --retry 3 --proto '=https' --tlsv1.2 "$1" --output "$2"
-    fi
+    curl --fail --silent --show-error --location --retry 3 --proto '=https' --tlsv1.2 "$1" --output "$2"
 }
 if [ -z "$SOURCE" ]; then
     printf 'Downloading source (%s)...\n' "$REF"
     fetch "https://api.github.com/repos/nikitakiselev/homelab-dashboard/tarball/$REF" "$WORKDIR/source.tar.gz" ||
-        fail 'Cannot download repository. A private repository requires HOMELAB_GITHUB_TOKEN.'
+        fail 'Cannot download repository. Check your network connection and the requested ref.'
     chmod 644 "$WORKDIR/source.tar.gz"
     mkdir "$WORKDIR/source"
     # Extract untrusted paths as an unprivileged system account.

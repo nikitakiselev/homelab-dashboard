@@ -22,8 +22,6 @@ A dashboard for monitoring home servers: CPU, GPU, memory, storage, SMART health
 
 The automatic installer targets Debian 12+ and Ubuntu 22.04+ with a running systemd instance. Supported architectures are x86_64 and ARM64. Inside a container, the collector sees resources available to that container; install an agent on the host to monitor physical hardware.
 
-> This repository is currently private. The commands below will work without authentication once it is public. For current access, follow the [private clone installation instructions (Russian)](docs/installation.md#приватный-репозиторий).
-
 **Central service with the built-in collector:**
 
 ```sh
