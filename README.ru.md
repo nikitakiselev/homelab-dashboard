@@ -8,16 +8,71 @@
 
 [Документация](docs/README.md) · [Проверки CI](https://github.com/nikitakiselev/homelab-dashboard/actions/workflows/checks.yml) · [Сообщить об ошибке](https://github.com/nikitakiselev/homelab-dashboard/issues)
 
-## Docker
+## Запуск дашборда через Docker
 
-Рекомендуемый способ доставки дашборда — готовый образ `ghcr.io/nikitakiselev/homelab-dashboard:stable` и [Docker Compose](compose.yaml). Скопируйте [.env.example](.env.example) в `.env`, задайте токен и выполните:
+Нужны Docker и Docker Compose v2 с поддержкой `up --wait`. Готовый образ `ghcr.io/nikitakiselev/homelab-dashboard` доступен для Linux amd64/arm64 без авторизации в registry. На сервере не нужны Python, Node.js или сборка исходников.
+
+**1. Скачайте конфигурацию в отдельный каталог:**
+
+```sh
+mkdir -p homelab-dashboard
+cd homelab-dashboard
+curl -fsSLO https://raw.githubusercontent.com/nikitakiselev/homelab-dashboard/main/compose.yaml
+curl -fsSL https://raw.githubusercontent.com/nikitakiselev/homelab-dashboard/main/.env.example -o .env
+chmod 600 .env
+```
+
+**2. Создайте токен входа:**
+
+```sh
+openssl rand -hex 32
+```
+
+Вставьте результат в строку `HOMELAB_DASHBOARD_TOKEN=` файла `.env`. Остальные настройки:
+
+- `HOMELAB_DASHBOARD_IMAGE=ghcr.io/nikitakiselev/homelab-dashboard:stable` — последний стабильный образ; `:0.1.0` закрепляет конкретную версию.
+- `HOMELAB_DASHBOARD_BIND=127.0.0.1` — доступ только с этой машины. Для LAN задайте LAN-адрес хоста либо `0.0.0.0`.
+- `HOMELAB_DASHBOARD_PORT=8080` — порт дашборда.
+- `HOMELAB_DASHBOARD_RETENTION_DAYS=90` — срок хранения истории.
+
+**3. Запустите дашборд:**
 
 ```sh
 docker compose pull
 docker compose up -d --wait
+docker compose ps
 ```
 
-Данные хранятся в постоянном volume, агенты устанавливаются отдельно. [Обновление, резервные копии и откат](docs/docker.md).
+Откройте `http://127.0.0.1:8080` или, если включили LAN-доступ, `http://<IP-сервера>:8080`. Для входа используйте созданный токен. Агенты устанавливаются отдельно — инструкция ниже. При добавлении агента на хосте Docker используйте LAN-адрес хоста: `127.0.0.1` внутри контейнера относится к самому контейнеру.
+
+Версия дашборда отображается в UI. SQLite хранится в постоянном volume `homelab-dashboard_dashboard-data`, который должен находиться на SSD. `.env` содержит токен: храните его приватно. Не выполняйте `docker compose down -v`, если хотите сохранить данные.
+
+### Обновление
+
+Из того же каталога с `compose.yaml` и `.env`:
+
+```sh
+docker compose exec -T dashboard python -m homelab.server.backup
+docker compose pull
+docker compose up -d --wait
+docker compose ps
+```
+
+Первая команда сохраняет согласованную копию SQLite в `/data/backups/`. При `:stable` будет загружен новый стабильный образ; если закреплён конкретный тег, сначала измените его в `.env`. История, подключённые серверы и токены сохраняются в volume, настройки — в `.env`. Копии из того же volume периодически сохраняйте на отдельное хранилище:
+
+```sh
+docker compose cp dashboard:/data/backups ./backups
+```
+
+### Откат и диагностика
+
+Укажите прежний тег в `HOMELAB_DASHBOARD_IMAGE` внутри `.env`, затем повторите `docker compose pull` и `docker compose up -d --wait`. Откат образа сохраняет текущую базу; перед несовместимой миграцией следуйте release notes и используйте соответствующую резервную копию. `up --wait` проверяет health, но не откатывает образ автоматически.
+
+```sh
+docker compose logs --tail=100 dashboard
+```
+
+При переходе со старой systemd-установки сначала перенесите существующие SQLite и токен: [миграция и подробности Docker](docs/docker.md#переход-с-systemd). Не запускайте две установки с одной базой одновременно.
 
 ## Возможности
 
@@ -25,16 +80,16 @@ docker compose up -d --wait
 - Отдельные Go-агенты для Linux x86_64/ARM64 без Python и Go-компилятора на хосте.
 - Подключение каждого Linux-хоста по IP и токену, включая машину самого дашборда.
 - CPU, память, поддерживаемые GPU, uptime и доступность машин.
-- HDD/SSD/NVMe: ёмкость и история I/O; HDD собираются пассивно, автоматический SMART доступен только для NVMe.
+- HDD/SSD/NVMe: ёмкость и история I/O; HDD по умолчанию собираются пассивно; NVMe SMART опрашивается автоматически, для выбранных прямых SATA-дисков можно явно включить редкие SMART-снимки во время наблюдаемой I/O-активности.
 - Страницы серверов и история CPU, памяти, GPU, сети и дисков за сутки, 7, 30 и 90 дней.
 - История хранится на агенте и догружается после отключения центрального сервиса.
 - YAML-конфиг для интервалов сбора, интерфейсов и хранения истории.
 
-## Установка
+## Установка Linux-агента и вариант с systemd
 
-Автоматический установщик рассчитан на Debian 12+ и Ubuntu 22.04+ с работающим systemd. Поддерживаются x86_64 и ARM64. При установке в контейнер сборщик видит доступные контейнеру ресурсы; для мониторинга физического оборудования агент устанавливается на хост.
+Дашборд рекомендуется запускать через Docker по инструкции выше. Автоматический установщик рассчитан на Debian 12+ и Ubuntu 22.04+ с работающим systemd. Поддерживаются x86_64 и ARM64. При установке в контейнер сборщик видит доступные контейнеру ресурсы; для мониторинга физического оборудования агент устанавливается на хост.
 
-**Служба дашборда:**
+**Альтернативная установка дашборда из исходников под systemd:**
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/nikitakiselev/homelab-dashboard/main/install.sh | sudo sh
@@ -81,6 +136,7 @@ flowchart LR
 
 ## Документация
 
+- [Docker: запуск, обновление, backup и миграция](docs/docker.md)
 - [Установка, обновление и резервирование](docs/installation.md)
 - [Удаление и очистка данных](docs/uninstall.md)
 - [Конфигурация сборщиков](docs/configuration.md)

@@ -8,16 +8,71 @@ A dashboard for monitoring home servers: CPU, GPU, memory, storage, SMART health
 
 [Documentation (Russian)](docs/README.md) · [CI checks](https://github.com/nikitakiselev/homelab-dashboard/actions/workflows/checks.yml) · [Report an issue](https://github.com/nikitakiselev/homelab-dashboard/issues)
 
-## Docker deployment
+## Run the dashboard with Docker
 
-The dashboard is delivered as `ghcr.io/nikitakiselev/homelab-dashboard:stable` for Linux amd64 and arm64. Download [compose.yaml](compose.yaml), copy [.env.example](.env.example) to `.env`, and set a private dashboard token:
+Requirements: Docker and Docker Compose v2 with `up --wait`. The prebuilt `ghcr.io/nikitakiselev/homelab-dashboard` image supports Linux amd64/arm64 and can be pulled without a registry login. Python, Node.js and source builds are not needed on the server.
+
+**1. Download the configuration into a dedicated directory:**
+
+```sh
+mkdir -p homelab-dashboard
+cd homelab-dashboard
+curl -fsSLO https://raw.githubusercontent.com/nikitakiselev/homelab-dashboard/main/compose.yaml
+curl -fsSL https://raw.githubusercontent.com/nikitakiselev/homelab-dashboard/main/.env.example -o .env
+chmod 600 .env
+```
+
+**2. Generate a dashboard login token:**
+
+```sh
+openssl rand -hex 32
+```
+
+Paste the result into `HOMELAB_DASHBOARD_TOKEN=` in `.env`. Other settings:
+
+- `HOMELAB_DASHBOARD_IMAGE=ghcr.io/nikitakiselev/homelab-dashboard:stable` follows the stable image; use `:0.1.0` to pin a release.
+- `HOMELAB_DASHBOARD_BIND=127.0.0.1` allows local access only. Use the host's LAN address or `0.0.0.0` for LAN access.
+- `HOMELAB_DASHBOARD_PORT=8080` sets the dashboard port.
+- `HOMELAB_DASHBOARD_RETENTION_DAYS=90` sets history retention.
+
+**3. Start the dashboard:**
 
 ```sh
 docker compose pull
 docker compose up -d --wait
+docker compose ps
 ```
 
-Updates use the same commands; pin a release tag to roll back. SQLite lives in a persistent volume. See [Docker deployment, backups and migration](docs/docker.md). Linux agents are installed separately.
+Open `http://127.0.0.1:8080`, or `http://<server-IP>:8080` if LAN access is enabled, and sign in with your token. Install agents separately as described below. When adding an agent on the Docker host, use its LAN address: `127.0.0.1` inside the container refers to the container itself.
+
+The running version is displayed in the UI. SQLite lives in the persistent `homelab-dashboard_dashboard-data` volume, which should reside on an SSD. Keep `.env` private. Do not run `docker compose down -v` if you want to retain data.
+
+### Updates
+
+Run from the same directory containing `compose.yaml` and `.env`:
+
+```sh
+docker compose exec -T dashboard python -m homelab.server.backup
+docker compose pull
+docker compose up -d --wait
+docker compose ps
+```
+
+The first command creates a consistent SQLite snapshot in `/data/backups/`. With `:stable`, `pull` retrieves the new stable image; if a release is pinned, edit its tag in `.env` first. History, registered servers and agent credentials remain in the volume; deployment settings remain in `.env`. Periodically copy backups to separate storage:
+
+```sh
+docker compose cp dashboard:/data/backups ./backups
+```
+
+### Rollback and diagnostics
+
+Set `HOMELAB_DASHBOARD_IMAGE` in `.env` to the previous release tag, then run `docker compose pull` and `docker compose up -d --wait`. Image rollback preserves the current database. Before an incompatible migration, follow the release notes and keep the matching database backup. `up --wait` checks health but does not roll back automatically.
+
+```sh
+docker compose logs --tail=100 dashboard
+```
+
+When moving an existing systemd installation, migrate its SQLite database and token first: see [migration details (Russian)](docs/docker.md#переход-с-systemd). Never run both installations against the same database simultaneously.
 
 ## Features
 
@@ -30,11 +85,11 @@ Updates use the same commands; pin a release tag to roll back. SQLite lives in a
 - Agents retain history locally and synchronize it after the central service reconnects.
 - YAML configuration for collection intervals, network interfaces, and history retention.
 
-## Installation
+## Linux agent installation and systemd alternative
 
-The automatic installer targets Debian 12+ and Ubuntu 22.04+ with a running systemd instance. Supported architectures are x86_64 and ARM64. Inside a container, the collector sees resources available to that container; install an agent on the host to monitor physical hardware.
+Docker is the recommended dashboard deployment; see above. The automatic installer targets Debian 12+ and Ubuntu 22.04+ with a running systemd instance. Supported architectures are x86_64 and ARM64. Inside a container, the collector sees resources available to that container; install an agent on the host to monitor physical hardware.
 
-**Dashboard service:**
+**Alternative dashboard installation from source with systemd:**
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/nikitakiselev/homelab-dashboard/main/install.sh | sudo sh
@@ -83,6 +138,7 @@ flowchart LR
 
 Detailed documentation is currently available in Russian:
 
+- [Docker deployment, updates, backups and migration](docs/docker.md)
 - [Installation, updates, and backups](docs/installation.md)
 - [Uninstalling and removing data](docs/uninstall.md)
 - [Collector configuration](docs/configuration.md)
