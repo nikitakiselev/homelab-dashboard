@@ -4,12 +4,14 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"syscall"
@@ -53,6 +55,18 @@ func download(url, path string, limit int64) error {
 	}
 	return e
 }
+
+type upgradeActions struct {
+	fetch         func(string, string, int64) error
+	binaryVersion func(string) (string, error)
+	install       func(string, string, string) error
+	output        io.Writer
+}
+
+var releaseTagPattern = regexp.MustCompile(`^agent-v[0-9][a-zA-Z0-9._+-]*$`)
+
+const latestReleaseAPI = "https://api.github.com/repos/nikitakiselev/homelab-dashboard/releases/latest"
+
 func Upgrade(version, config, env string) error {
 	if runtime.GOOS != "linux" || os.Geteuid() != 0 {
 		return fmt.Errorf("upgrade requires root on Linux")
@@ -60,25 +74,67 @@ func Upgrade(version, config, env string) error {
 	if runtime.GOARCH != "amd64" && runtime.GOARCH != "arm64" {
 		return fmt.Errorf("unsupported architecture")
 	}
-	if version != "latest" && (!strings.HasPrefix(version, "agent-v") || strings.ContainsAny(version, "/\\?% \r\n")) {
+	return performUpgrade(version, Version, runtime.GOARCH, config, env, upgradeActions{
+		fetch: download, install: Install, output: os.Stdout,
+		binaryVersion: func(path string) (string, error) {
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			out, err := exec.CommandContext(ctx, path, "version").Output()
+			return strings.TrimSpace(string(out)), err
+		},
+	})
+}
+
+func performUpgrade(version, currentVersion, arch, config, env string, actions upgradeActions) error {
+	if version != "latest" && !releaseTagPattern.MatchString(version) {
 		return fmt.Errorf("expected release tag agent-vX.Y.Z")
 	}
+	fmt.Fprintf(actions.output, "Current version: %s\n", currentVersion)
+
 	dir, err := os.MkdirTemp("", "homelab-agent-upgrade-")
 	if err != nil {
 		return err
 	}
 	defer os.RemoveAll(dir)
-	asset := "homelab-agent_linux_" + runtime.GOARCH
-	base := releaseBase + "/latest/download/"
-	if version != "latest" {
-		base = releaseBase + "/download/" + version + "/"
+	tag := version
+	if tag == "latest" {
+		if err = actions.fetch(latestReleaseAPI, dir+"/release.json", 1<<20); err != nil {
+			return fmt.Errorf("cannot check latest release: %w", err)
+		}
+		raw, readErr := os.ReadFile(dir + "/release.json")
+		if readErr != nil {
+			return readErr
+		}
+		var release struct {
+			Tag        string `json:"tag_name"`
+			Draft      bool   `json:"draft"`
+			Prerelease bool   `json:"prerelease"`
+		}
+		if err = json.Unmarshal(raw, &release); err != nil {
+			return fmt.Errorf("invalid latest release response: %w", err)
+		}
+		if !releaseTagPattern.MatchString(release.Tag) || release.Draft || release.Prerelease {
+			return fmt.Errorf("latest release is not a published stable agent release")
+		}
+		tag = release.Tag
 	}
-	if err = download(base+"SHA256SUMS", dir+"/SHA256SUMS", 65536); err != nil {
+	targetVersion := strings.TrimPrefix(tag, "agent-v")
+	fmt.Fprintf(actions.output, "Available version: %s\n", targetVersion)
+	if currentVersion == targetVersion {
+		fmt.Fprintf(actions.output, "Already up to date (%s). No changes made; service was not restarted.\n", currentVersion)
+		return nil
+	}
+	asset := "homelab-agent_linux_" + arch
+	// Pin both files to the resolved tag so a concurrent release cannot mix them.
+	base := releaseBase + "/download/" + tag + "/"
+	fmt.Fprintf(actions.output, "Updating agent: %s -> %s\n", currentVersion, targetVersion)
+	if err = actions.fetch(base+"SHA256SUMS", dir+"/SHA256SUMS", 65536); err != nil {
 		return err
 	}
-	if err = download(base+asset, dir+"/"+asset, 100<<20); err != nil {
+	if err = actions.fetch(base+asset, dir+"/"+asset, 100<<20); err != nil {
 		return err
 	}
+
 	raw, err := os.ReadFile(dir + "/SHA256SUMS")
 	if err != nil {
 		return err
@@ -112,10 +168,17 @@ func Upgrade(version, config, env string) error {
 	if err = os.Chmod(dir+"/"+asset, 0755); err != nil {
 		return err
 	}
-	if err = Install(dir+"/"+asset, config, env); err != nil {
+	actualVersion, err := actions.binaryVersion(dir + "/" + asset)
+	if err != nil {
+		return fmt.Errorf("cannot read downloaded agent version: %w", err)
+	}
+	if actualVersion != "homelab-agent "+targetVersion {
+		return fmt.Errorf("downloaded binary version does not match release %s", tag)
+	}
+	if err = actions.install(dir+"/"+asset, config, env); err != nil {
 		return err
 	}
-	fmt.Println("Agent update complete. Service restarted and API verified; configuration and history preserved.")
+	fmt.Fprintf(actions.output, "Agent updated: %s -> %s. Service restarted and API verified; configuration and history preserved.\n", currentVersion, targetVersion)
 	return nil
 }
 func Install(source, config, env string) error {
