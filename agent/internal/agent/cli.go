@@ -94,7 +94,10 @@ func CLI(args []string) error {
 		if *binary == "" {
 			return fmt.Errorf("install requires --binary")
 		}
-		return Install(*binary, *config, *env)
+		if err := Install(*binary, *config, *env); err != nil {
+			return err
+		}
+		return showInstallationSummary(*config, *env)
 	case "upgrade":
 		return Upgrade(*version, *config, *env)
 	case "run", "check-config", "status", "doctor":

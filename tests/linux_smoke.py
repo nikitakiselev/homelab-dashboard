@@ -14,7 +14,7 @@ from urllib.error import HTTPError, URLError
 sys.path.insert(0,str(Path(__file__).resolve().parent.parent))
 from homelab.server.app import Dashboard, demo_metrics
 from homelab.shared.storage import History
-AGENT_VERSION="0.2.0"
+AGENT_VERSION="0.2.1"
 
 
 def main():

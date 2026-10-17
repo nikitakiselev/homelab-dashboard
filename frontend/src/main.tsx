@@ -38,7 +38,6 @@ import {
   Command,
   Activity,
   LogOut,
-  Download,
 } from "lucide-react";
 import { Button } from "./components/ui/button";
 import { Card } from "./components/ui/card";
@@ -147,18 +146,6 @@ function App() {
   );
   const active = eligible.find((h) => h.id === selected) || eligible[0];
   const detail = hosts.find((h) => h.id === detailId);
-  const downloadAgent = async () => {
-    const response = await fetch("/api/agent/bundle", {
-      headers: token ? { Authorization: "Bearer " + token } : {},
-    });
-    if (!response.ok) throw new Error("Не удалось скачать агент");
-    const url = URL.createObjectURL(await response.blob());
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "homelab-agent.tar.gz";
-    link.click();
-    setTimeout(() => URL.revokeObjectURL(url), 30000);
-  };
   useEffect(() => {
     let alive = true;
     if (!active) {
@@ -944,7 +931,6 @@ function App() {
         </div>
       </main>
       <AddServer
-        onDownload={downloadAgent}
         open={add}
         onOpenChange={setAdd}
         request={request}
@@ -1491,13 +1477,11 @@ function AddServer({
   onOpenChange,
   request,
   onAdded,
-  onDownload,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   request: (path: string, options?: RequestInit) => Promise<any>;
   onAdded: () => void;
-  onDownload: () => Promise<void>;
 }) {
   const [name, setName] = useState(""),
     [ip, setIp] = useState(""),
@@ -1603,31 +1587,10 @@ function AddServer({
             <div className="rounded-xl bg-zinc-50 p-3">
               <div className="mb-2 flex items-center gap-2 text-[14px] text-zinc-500">
                 <Terminal size={13} />
-                Агент ещё не запущен?
+                Установка агента на Linux
               </div>
-              <p className="mb-2 text-[12px] leading-4 text-zinc-400">
-                Выполните команду на Linux-хосте или установите агент из архива.
-                Установщик скачает готовый Go-бинарник. Токен будет в
-                /etc/homelab/agent.env.
-              </p>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="mb-3"
-                onClick={async () => {
-                  try {
-                    await onDownload();
-                  } catch (e) {
-                    setError((e as Error).message);
-                  }
-                }}
-              >
-                <Download size={13} />
-                Скачать Linux-агент
-              </Button>
-              <div className="flex items-center gap-2">
-                <code className="min-w-0 flex-1 overflow-x-auto whitespace-nowrap text-[12px] text-zinc-500">
+              <div className="flex items-start gap-2">
+                <code className="min-w-0 flex-1 select-all break-all font-mono text-sm leading-6 text-zinc-700">
                   {cmd}
                 </code>
                 <button
@@ -1644,9 +1607,9 @@ function AddServer({
                       );
                     }
                   }}
-                  className="text-zinc-400 cursor-pointer"
+                  className="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-lg text-zinc-500 hover:bg-zinc-200/60"
                 >
-                  {copied ? <CheckCheck size={13} /> : <Copy size={13} />}
+                  {copied ? <CheckCheck size={16} /> : <Copy size={16} />}
                 </button>
               </div>
             </div>

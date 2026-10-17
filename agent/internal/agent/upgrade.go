@@ -112,7 +112,11 @@ func Upgrade(version, config, env string) error {
 	if err = os.Chmod(dir+"/"+asset, 0755); err != nil {
 		return err
 	}
-	return Install(dir+"/"+asset, config, env)
+	if err = Install(dir+"/"+asset, config, env); err != nil {
+		return err
+	}
+	fmt.Println("Agent update complete. Service restarted and API verified; configuration and history preserved.")
+	return nil
 }
 func Install(source, config, env string) error {
 	if runtime.GOOS != "linux" || os.Geteuid() != 0 {
@@ -248,7 +252,6 @@ WantedBy=multi-user.target
 	if err = interactive("systemctl", "enable", "homelab-agent"); err != nil {
 		return rollback(err)
 	}
-	fmt.Printf("homelab-agent %s installed; API verified on port %d\nConfig, credentials and history preserved.\n", expected, c.Server.Port)
 	return nil
 }
 func copyFile(source, dest string, mode os.FileMode) error {

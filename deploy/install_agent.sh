@@ -31,5 +31,3 @@ else
 fi
 chmod 755 "$work/homelab-agent"
 "$work/homelab-agent" install --binary "$work/homelab-agent"
-printf '\nCLI: homelab-agent version | homelab-agent status\n'
-printf 'Use the token from /etc/homelab/agent.env when adding this host to the dashboard.\n'

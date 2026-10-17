@@ -71,6 +71,7 @@ flowchart LR
 ## Документация
 
 - [Установка, обновление и резервирование](docs/installation.md)
+- [Удаление и очистка данных](docs/uninstall.md)
 - [Конфигурация сборщиков](docs/configuration.md)
 - [Разработка и проверки](docs/development.md)
 - [Архитектура и границы компонентов](docs/architecture.md)

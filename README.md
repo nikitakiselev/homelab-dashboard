@@ -73,6 +73,7 @@ flowchart LR
 Detailed documentation is currently available in Russian:
 
 - [Installation, updates, and backups](docs/installation.md)
+- [Uninstalling and removing data](docs/uninstall.md)
 - [Collector configuration](docs/configuration.md)
 - [Development and checks](docs/development.md)
 - [Architecture and component boundaries](docs/architecture.md)
