@@ -42,7 +42,7 @@ Details (Russian): [installation and updates](docs/installation.md) · [YAML con
 
 ## Local development
 
-Requirements: Python 3.10+, Node.js 22+, and npm. From a cloned repository:
+Requirements: Ubuntu 22.04+ or Debian 12+, Python 3.10+, Node.js 22+, and npm. From a cloned repository:
 
 ```sh
 python3 -m venv .venv

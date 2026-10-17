@@ -1,6 +1,6 @@
 # Разработка
 
-Требования: Python 3.10+, Node.js 22+, npm. Сборщики поддерживают Linux и macOS. Автоматический системный установщик предназначен для Debian/Ubuntu с systemd.
+Целевая платформа: Ubuntu 22.04+ и Debian 12+ с systemd. Для разработки нужны Python 3.10+, Node.js 22+ и npm.
 
 ```sh
 python3 -m venv .venv
@@ -30,7 +30,7 @@ python3 -m homelab.agent --config deploy/agent.example.yaml --check-config
 
 ```text
 frontend/             React, Tailwind, shadcn/ui
-homelab/agent/        Сборщики Linux/macOS, расписание, HTTP API
+homelab/agent/        Сбор метрик Linux, расписание, HTTP API
 homelab/server/       Центральный API, опрос, синхронизация, архив агента
 homelab/shared/       SQLite, YAML и состав установочного пакета
 install.sh            Bootstrap для центрального сервиса или --agent

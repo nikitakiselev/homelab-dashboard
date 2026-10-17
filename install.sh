@@ -32,7 +32,7 @@ while [ "$#" -gt 0 ]; do
     esac
 done
 case "$REF" in ''|*[!a-zA-Z0-9._/-]*) fail 'Invalid GitHub ref' ;; esac
-[ "$(uname -s)" = Linux ] || fail 'Automatic installation requires Linux; see docs/development.md for macOS.'
+[ "$(uname -s)" = Linux ] || fail 'Automatic installation requires Ubuntu or Debian Linux.'
 [ "$(id -u)" -eq 0 ] || fail 'Run the installer with sudo sh.'
 [ -r /etc/os-release ] || fail 'Cannot determine the Linux distribution.'
 # shellcheck disable=SC1091

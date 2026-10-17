@@ -42,7 +42,7 @@ curl -fsSL https://raw.githubusercontent.com/nikitakiselev/homelab-dashboard/mai
 
 ## Локальный запуск
 
-Требования: Python 3.10+, Node.js 22+ и npm. Из клона репозитория:
+Требования: Ubuntu 22.04+ или Debian 12+, Python 3.10+, Node.js 22+ и npm. Из клона репозитория:
 
 ```sh
 python3 -m venv .venv
