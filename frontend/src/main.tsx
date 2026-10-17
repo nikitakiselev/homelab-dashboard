@@ -49,6 +49,15 @@ import {
   DialogDescription,
 } from "./components/ui/dialog";
 import {
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerBody,
+  DrawerFooter,
+  DrawerTitle,
+  DrawerDescription,
+} from "./components/ui/drawer";
+import {
   cn,
   bytes,
   speed,
@@ -1014,27 +1023,31 @@ function App() {
           </form>
         </DialogContent>
       </Dialog>
-      <Dialog
+      <Drawer
         open={!!detail}
         onOpenChange={(open) => {
           if (!open) setDetailId(null);
         }}
       >
-        <DialogContent className="max-w-3xl">
+        <DrawerContent className="max-w-2xl">
           {detail && (
             <>
-              <DialogTitle className="text-xl font-semibold">
-                {detail.name}
-              </DialogTitle>
-              <DialogDescription className="mt-2 text-sm text-zinc-500">
-                {detail.local
-                  ? "Центральный сервер"
-                  : `${detail.ip}:${detail.port}`}{" "}
-                · {detail.metrics?.os || "ОС неизвестна"}
-                {detail.demo ? " · Демонстрационные данные" : ""}
-              </DialogDescription>
-              <HostDetails host={detail} />
-              <div className="mt-6 flex flex-wrap justify-between gap-3 border-t border-zinc-100 pt-4">
+              <DrawerHeader>
+                <DrawerTitle className="break-words text-[22px] font-semibold tracking-tight">
+                  {detail.name}
+                </DrawerTitle>
+                <DrawerDescription className="mt-2 text-sm text-zinc-500">
+                  {detail.local
+                    ? "Центральный сервер"
+                    : `${detail.ip}:${detail.port}`}{" "}
+                  · {detail.metrics?.os || "ОС неизвестна"}
+                  {detail.demo ? " · Демонстрационные данные" : ""}
+                </DrawerDescription>
+              </DrawerHeader>
+              <DrawerBody>
+                <HostDetails host={detail} />
+              </DrawerBody>
+              <DrawerFooter className="justify-between">
                 <Button
                   variant="outline"
                   size="sm"
@@ -1061,11 +1074,11 @@ function App() {
                     Удалить сервер
                   </Button>
                 )}
-              </div>
+              </DrawerFooter>
             </>
           )}
-        </DialogContent>
-      </Dialog>
+        </DrawerContent>
+      </Drawer>
       <Dialog
         open={!!deleteTarget}
         onOpenChange={(open) => {
@@ -1496,149 +1509,167 @@ function AddServer({
   const cmd =
     "curl -fsSL https://raw.githubusercontent.com/nikitakiselev/homelab-dashboard/main/install.sh | sudo sh -s -- --agent";
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <div className="mb-5 inline-flex rounded-2xl bg-blue-50 p-3 text-blue-500">
-          <Server size={25} strokeWidth={1.5} />
-        </div>
-        <DialogTitle className="text-[22px] font-semibold tracking-[-.6px]">
-          Добавить сервер
-        </DialogTitle>
-        <DialogDescription className="mt-2 text-sm leading-6 text-zinc-400">
-          Добавьте Linux-сервер с установленным агентом. Мы проверим подключение
-          и загрузим его историю.
-        </DialogDescription>
-        <form
-          className="mt-6 space-y-4"
-          onSubmit={async (e) => {
-            e.preventDefault();
-            setBusy(true);
-            setError("");
-            try {
-              await request("/hosts", {
-                method: "POST",
-                body: JSON.stringify({ name, ip, port: Number(port), token }),
-              });
-              onAdded();
-              onOpenChange(false);
-              setToken("");
-              setIp("");
-              setName("");
-            } catch (e) {
-              setError((e as Error).message);
-            } finally {
-              setBusy(false);
-            }
-          }}
-        >
-          <label className="block text-sm font-medium">
-            Название{" "}
-            <span className="font-normal text-zinc-400">· необязательно</span>
-            <input
-              maxLength={80}
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Например, домашний сервер"
-              className="mt-2 h-10 w-full rounded-lg border border-zinc-200 px-3 text-sm font-normal"
-            />
-          </label>
-          <div className="flex gap-3">
-            <label className="block flex-1 text-sm font-medium">
-              IP-адрес
+    <Drawer
+      open={open}
+      onOpenChange={(next) => {
+        if (!busy) onOpenChange(next);
+      }}
+    >
+      <DrawerContent closeDisabled={busy}>
+        <DrawerHeader>
+          <DrawerTitle className="text-[22px] font-semibold tracking-[-.6px]">
+            Добавить сервер
+          </DrawerTitle>
+          <DrawerDescription className="mt-2 text-sm leading-6 text-zinc-400">
+            Добавьте Linux-сервер с установленным агентом. Мы проверим
+            подключение и загрузим его историю.
+          </DrawerDescription>
+        </DrawerHeader>
+        <DrawerBody>
+          <form
+            id="add-host-form"
+            className="space-y-5"
+            onSubmit={async (e) => {
+              e.preventDefault();
+              if (busy) return;
+              setBusy(true);
+              setError("");
+              try {
+                await request("/hosts", {
+                  method: "POST",
+                  body: JSON.stringify({ name, ip, port: Number(port), token }),
+                });
+                onAdded();
+                onOpenChange(false);
+                setToken("");
+                setIp("");
+                setName("");
+              } catch (e) {
+                setError((e as Error).message);
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            <label className="block text-sm font-medium">
+              Название{" "}
+              <span className="font-normal text-zinc-400">· необязательно</span>
               <input
-                required
-                value={ip}
-                onChange={(e) => setIp(e.target.value)}
-                placeholder="192.168.1.10"
+                maxLength={80}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Например, домашний сервер"
                 className="mt-2 h-10 w-full rounded-lg border border-zinc-200 px-3 text-sm font-normal"
               />
             </label>
-            <label className="block w-24 text-sm font-medium">
-              Порт
-              <input
-                required
-                type="number"
-                min="1"
-                max="65535"
-                value={port}
-                onChange={(e) => setPort(e.target.value)}
-                className="mt-2 h-10 w-full rounded-lg border border-zinc-200 px-3 text-sm font-normal"
-              />
-            </label>
-          </div>
-          <label className="block text-sm font-medium">
-            Токен агента
-            <input
-              required
-              type="password"
-              minLength={24}
-              maxLength={256}
-              autoComplete="off"
-              value={token}
-              onChange={(e) => setToken(e.target.value)}
-              placeholder="HOMELAB_AGENT_TOKEN"
-              className="mt-2 h-10 w-full rounded-lg border border-zinc-200 px-3 text-sm font-normal"
-            />
-          </label>
-          <div className="rounded-xl bg-zinc-50 p-3">
-            <div className="mb-2 flex items-center gap-2 text-[14px] text-zinc-500">
-              <Terminal size={13} />
-              Агент ещё не запущен?
+            <div className="flex gap-3">
+              <label className="block min-w-0 flex-1 text-sm font-medium">
+                IP-адрес
+                <input
+                  required
+                  value={ip}
+                  onChange={(e) => setIp(e.target.value)}
+                  placeholder="192.168.1.10"
+                  className="mt-2 h-10 w-full rounded-lg border border-zinc-200 px-3 text-sm font-normal"
+                />
+              </label>
+              <label className="block w-24 text-sm font-medium">
+                Порт
+                <input
+                  required
+                  type="number"
+                  min="1"
+                  max="65535"
+                  value={port}
+                  onChange={(e) => setPort(e.target.value)}
+                  className="mt-2 h-10 w-full rounded-lg border border-zinc-200 px-3 text-sm font-normal"
+                />
+              </label>
             </div>
-            <p className="mb-2 text-[12px] leading-4 text-zinc-400">
-              Выполните команду на Linux-хосте или установите агент из архива.
-              Установщик скачает готовый Go-бинарник. Токен будет в
-              /etc/homelab/agent.env.
-            </p>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="mb-3"
-              onClick={async () => {
-                try {
-                  await onDownload();
-                } catch (e) {
-                  setError((e as Error).message);
-                }
-              }}
-            >
-              <Download size={13} />
-              Скачать Linux-агент
-            </Button>
-            <div className="flex items-center gap-2">
-              <code className="min-w-0 flex-1 overflow-x-auto whitespace-nowrap text-[12px] text-zinc-500">
-                {cmd}
-              </code>
-              <button
+            <label className="block text-sm font-medium">
+              Токен агента
+              <input
+                required
+                type="password"
+                minLength={24}
+                maxLength={256}
+                autoComplete="off"
+                value={token}
+                onChange={(e) => setToken(e.target.value)}
+                placeholder="HOMELAB_AGENT_TOKEN"
+                className="mt-2 h-10 w-full rounded-lg border border-zinc-200 px-3 text-sm font-normal"
+              />
+            </label>
+            <div className="rounded-xl bg-zinc-50 p-3">
+              <div className="mb-2 flex items-center gap-2 text-[14px] text-zinc-500">
+                <Terminal size={13} />
+                Агент ещё не запущен?
+              </div>
+              <p className="mb-2 text-[12px] leading-4 text-zinc-400">
+                Выполните команду на Linux-хосте или установите агент из архива.
+                Установщик скачает готовый Go-бинарник. Токен будет в
+                /etc/homelab/agent.env.
+              </p>
+              <Button
                 type="button"
-                aria-label="Скопировать команду агента"
+                variant="outline"
+                size="sm"
+                className="mb-3"
                 onClick={async () => {
                   try {
-                    await navigator.clipboard.writeText(cmd);
-                    setCopied(true);
-                    setTimeout(() => setCopied(false), 2000);
-                  } catch {
-                    setError(
-                      "Буфер обмена недоступен. Скопируйте команду вручную.",
-                    );
+                    await onDownload();
+                  } catch (e) {
+                    setError((e as Error).message);
                   }
                 }}
-                className="text-zinc-400 cursor-pointer"
               >
-                {copied ? <CheckCheck size={13} /> : <Copy size={13} />}
-              </button>
+                <Download size={13} />
+                Скачать Linux-агент
+              </Button>
+              <div className="flex items-center gap-2">
+                <code className="min-w-0 flex-1 overflow-x-auto whitespace-nowrap text-[12px] text-zinc-500">
+                  {cmd}
+                </code>
+                <button
+                  type="button"
+                  aria-label="Скопировать команду агента"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(cmd);
+                      setCopied(true);
+                      setTimeout(() => setCopied(false), 2000);
+                    } catch {
+                      setError(
+                        "Буфер обмена недоступен. Скопируйте команду вручную.",
+                      );
+                    }
+                  }}
+                  className="text-zinc-400 cursor-pointer"
+                >
+                  {copied ? <CheckCheck size={13} /> : <Copy size={13} />}
+                </button>
+              </div>
             </div>
-          </div>
+          </form>
+        </DrawerBody>
+        <DrawerFooter>
           {error && (
             <p
               role="alert"
-              className="rounded-lg bg-red-50 p-3 text-sm text-red-500"
+              className="w-full rounded-lg bg-red-50 p-3 text-sm text-red-500"
             >
               {error}
             </p>
           )}
-          <Button type="submit" disabled={busy} className="w-full">
+          <Button
+            type="button"
+            variant="outline"
+            disabled={busy}
+            onClick={() => onOpenChange(false)}
+          >
+            Отмена
+          </Button>
+          <Button type="submit" form="add-host-form" disabled={busy}>
             {busy ? (
               <Loader2 size={15} className="spinner" />
             ) : (
@@ -1646,9 +1677,9 @@ function AddServer({
             )}{" "}
             {busy ? "Проверяем подключение…" : "Добавить сервер"}
           </Button>
-        </form>
-      </DialogContent>
-    </Dialog>
+        </DrawerFooter>
+      </DrawerContent>
+    </Drawer>
   );
 }
 createRoot(document.getElementById("root")!).render(
@@ -1664,7 +1695,7 @@ function HostDetails({ host }: { host: Host }) {
       <Empty text="Метрики ещё не получены. Проверьте подключение агента." />
     );
   return (
-    <div className="mt-6 space-y-6">
+    <div className="space-y-6">
       {m.diagnostics &&
         Object.entries(m.diagnostics).map(([key, value]) => (
           <p
