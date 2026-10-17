@@ -30,7 +30,7 @@ Run `python3 -m unittest discover -s tests -v`, `npm run build`, `sh -n install.
 
 ## Commit & Pull Request Guidelines
 
-Use concise imperative commit subjects, such as “Add sleep-aware disk monitoring”; history does not require Conventional Commits prefixes. Keep each branch focused on one task. Open an issue before significant behavior changes. PRs should describe the problem, resulting behavior, validation, and material limitations; link relevant issues and include anonymized UI screenshots when useful. Update documentation when commands, YAML, APIs, or platform support change.
+Follow [Git workflow rules](docs/git-workflow.md). Use Conventional Commits and write all commit messages in English, for example `feat(agent): add sleep-aware disk monitoring`. The primary branch is `main`; create task branches from it and target PRs to it. Open an issue before significant behavior changes. PRs should describe the problem, resulting behavior, validation, and material limitations; link relevant issues and include anonymized UI screenshots when useful. Update documentation when commands, YAML, APIs, or platform support change.
 
 ## Security & Configuration
 
