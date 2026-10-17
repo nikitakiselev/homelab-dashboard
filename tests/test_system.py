@@ -8,8 +8,8 @@ from pathlib import Path
 from unittest.mock import patch
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
-from homelab.server import Dashboard, address, demo_metrics, handler
-from homelab.storage import History
+from homelab.server.app import Dashboard, address, demo_metrics, handler
+from homelab.shared.storage import History
 
 TOKEN='a-secure-agent-token-for-tests'
 
@@ -63,7 +63,7 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(restarted.chart(hid,1),[])
 
     def test_builtin_collector_is_local_and_not_removable(self):
-        with patch('homelab.server.platform.system',return_value='Linux'),patch('homelab.server.Collector') as collector:
+        with patch('homelab.server.app.platform.system',return_value='Linux'),patch('homelab.server.app.create_collector') as collector:
             collector.return_value.latest=self.metrics
             collector.return_value.error=None
             dashboard=Dashboard(Path(self.tmp.name)/'self.sqlite',monitor_self=True)
@@ -78,7 +78,7 @@ class SystemTests(unittest.TestCase):
             collector.return_value.stop.assert_called_once()
 
     def test_builtin_collector_prevents_duplicate_registration(self):
-        with patch('homelab.server.platform.system',return_value='Linux'),patch('homelab.server.Collector') as collector:
+        with patch('homelab.server.app.platform.system',return_value='Linux'),patch('homelab.server.app.create_collector') as collector:
             collector.return_value.agent_id=self.metrics['agent_id']
             dashboard=Dashboard(Path(self.tmp.name)/'self.sqlite',monitor_self=True)
             with self.assertRaisesRegex(ValueError,'встроенным'):

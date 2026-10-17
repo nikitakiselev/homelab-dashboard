@@ -11,7 +11,7 @@ from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
 
 sys.path.insert(0,str(Path(__file__).resolve().parent.parent))
-from homelab.server import Dashboard
+from homelab.server.app import Dashboard
 
 
 def main():

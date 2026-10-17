@@ -1205,9 +1205,11 @@ function ServerCard({
             <span className="rounded border border-zinc-100 bg-zinc-50 px-1.5 py-px text-[8px]">
               {m?.platform === "Proxmox"
                 ? "Proxmox"
-                : m?.os.startsWith("Ubuntu")
-                  ? "Ubuntu"
-                  : "Linux"}
+                : m?.platform === "macOS"
+                  ? "macOS"
+                  : m?.os.startsWith("Ubuntu")
+                    ? "Ubuntu"
+                    : "Linux"}
             </span>
           </div>
         </div>

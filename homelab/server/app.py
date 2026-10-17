@@ -16,9 +16,9 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
 from urllib.request import Request, build_opener, HTTPRedirectHandler, ProxyHandler
-from .storage import History, RETENTION
+from ..shared.storage import History, RETENTION
 from .bundle import agent_archive
-from .agent import Collector
+from ..agent import create_collector
 
 class NoRedirect(HTTPRedirectHandler):
     def redirect_request(self,*args):
@@ -104,9 +104,9 @@ class Dashboard:
                     pass
 
         if monitor_self:
-            if platform.system() != 'Linux':
-                raise ValueError('Built-in collection requires Linux')
-            self.local_collector = Collector(self.history,history_host='local')
+            if platform.system() not in ('Linux','Darwin'):
+                raise ValueError('Built-in collection supports Linux and macOS')
+            self.local_collector = create_collector(self.history,history_host='local')
             self.local_collector.start()
 
     def close(self):
@@ -326,14 +326,14 @@ def main():
     p.add_argument('--port',default=8080,type=int)
     p.add_argument('--data',default='./data/dashboard.sqlite')
     p.add_argument('--demo',action='store_true')
-    p.add_argument('--no-self-monitor',action='store_true',help='Disable the built-in Linux collector')
+    p.add_argument('--no-self-monitor',action='store_true',help='Disable the built-in local collector')
     args=p.parse_args()
     token=os.getenv('HOMELAB_DASHBOARD_TOKEN','')
     if args.bind not in ('127.0.0.1','::1','localhost') and len(token)<24:
         p.error('For LAN access, set HOMELAB_DASHBOARD_TOKEN (24+ characters)')
-    dashboard=Dashboard(args.data,args.demo,monitor_self=platform.system()=='Linux' and not args.no_self_monitor)
+    dashboard=Dashboard(args.data,args.demo,monitor_self=platform.system() in ('Linux','Darwin') and not args.no_self_monitor)
     threading.Thread(target=dashboard.run,daemon=True).start()
-    dist=Path(__file__).resolve().parent.parent/'dist'
+    dist=Path(__file__).resolve().parents[2]/'dist'
     print(f'Dashboard: http://{args.bind}:{args.port}',flush=True)
     try:
         ThreadingHTTPServer((args.bind,args.port),handler(dashboard,token,dist)).serve_forever()

@@ -32,7 +32,7 @@ export type GPU = {
   engines?: Record<string, number>;
   shared_memory?: boolean;
   name: string;
-  usage: number;
+  usage: number | null;
   memory_used: number | null;
   memory_total: number | null;
   temperature: number | null;

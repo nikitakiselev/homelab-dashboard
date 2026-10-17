@@ -10,6 +10,24 @@ import sys
 from pathlib import Path
 
 
+sys.path.insert(0,str(Path(__file__).resolve().parent.parent))
+from homelab.shared.packaging import AGENT_SOURCE_FILES
+
+
+def install_sources(source,target):
+    for filename in AGENT_SOURCE_FILES:
+        origin=source/filename
+        dest=target/filename
+        dest.parent.mkdir(parents=True,exist_ok=True)
+        if origin.resolve()!=dest.resolve():
+            shutil.copy2(origin,dest)
+    # The package replaces the old flat module. Keep legacy storage if an older
+    # central server is co-installed and still imports it.
+    (target/'homelab/agent.py').unlink(missing_ok=True)
+    if not (target/'homelab/server.py').exists():
+        (target/'homelab/storage.py').unlink(missing_ok=True)
+
+
 def run(*args):
     subprocess.run(args, check=True)
 
@@ -46,7 +64,7 @@ def main():
     if not shutil.which('systemctl'):
         parser.error('A systemd-based Linux host is required')
     source = Path(__file__).resolve().parent.parent
-    if not (source/'homelab/agent.py').is_file():
+    if not (source/'homelab/agent/__main__.py').is_file():
         parser.error('Extract the entire agent archive before installation')
     if args.check:
         for binary in ('python3', 'lsblk', 'smartctl', 'systemctl'):
@@ -77,12 +95,7 @@ def main():
         print('Warning: missing utilities: '+', '.join(missing))
     target = Path('/opt/homelab-dashboard')
     target.mkdir(parents=True, exist_ok=True)
-    (target/'homelab').mkdir(exist_ok=True)
-    for filename in ('__init__.py','agent.py','storage.py'):
-        origin = source/'homelab'/filename
-        dest = target/'homelab'/filename
-        if origin.resolve() != dest.resolve():
-            shutil.copy2(origin, dest)
+    install_sources(source,target)
     env_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     # Create private file atomically. An update keeps the token and interface settings.
     temporary = env_path.with_suffix('.tmp')
