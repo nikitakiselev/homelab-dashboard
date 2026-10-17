@@ -203,4 +203,20 @@ class SystemTests(unittest.TestCase):
             err.exception.close()
         finally: api.shutdown();api.server_close()
 
+
+    def test_dashboard_version_api_requires_auth_and_reports_build(self):
+        from homelab.server.version import release_info
+        server=ThreadingHTTPServer(('127.0.0.1',0),handler(self.dashboard,TOKEN,Path(self.tmp.name)))
+        threading.Thread(target=server.serve_forever,daemon=True).start()
+        base=f'http://127.0.0.1:{server.server_port}'
+        try:
+            with self.assertRaises(HTTPError) as error:urlopen(base+'/api/version')
+            self.assertEqual(error.exception.code,401)
+            error.exception.close()
+            with urlopen(Request(base+'/api/version',headers={'Authorization':'Bearer '+TOKEN})) as response:
+                self.assertEqual(json.load(response),release_info())
+            with urlopen(Request(base+'/api/hosts',headers={'Authorization':'Bearer '+TOKEN})) as response:
+                self.assertEqual(json.load(response)['version'],release_info())
+        finally:server.shutdown();server.server_close()
+
 if __name__=='__main__': unittest.main()

@@ -95,6 +95,10 @@ function App({ view }: { view: View }) {
     [auth, setAuth] = useState(false),
     [token, setToken] = useState(sessionStorage.getItem("homelab-token") || "");
   const [authDraft, setAuthDraft] = useState("");
+  const [dashboardVersion, setDashboardVersion] = useState<{
+    version: string;
+    commit?: string | null;
+  } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null),
     [deleteBusy, setDeleteBusy] = useState(false);
   const [search, setSearch] = useState(""),
@@ -131,6 +135,7 @@ function App({ view }: { view: View }) {
     try {
       const d = await request("/hosts");
       setHosts(d.hosts);
+      setDashboardVersion(d.version || null);
       setUpdated(d.timestamp);
       setError("");
       setAuth(false);
@@ -272,6 +277,22 @@ function App({ view }: { view: View }) {
             </Link>
           ))}
         </nav>
+        {dashboardVersion && (
+          <div
+            className="mt-6 px-3 text-[11px] text-muted-foreground"
+            title={dashboardVersion.commit || undefined}
+          >
+            Dashboard{" "}
+            {dashboardVersion.version === "development"
+              ? "· разработка"
+              : `v${dashboardVersion.version}`}
+            {dashboardVersion.commit && (
+              <span className="ml-1">
+                · {dashboardVersion.commit.slice(0, 7)}
+              </span>
+            )}
+          </div>
+        )}
         {token && (
           <div className="mt-auto pt-6">
             <Button

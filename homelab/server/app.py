@@ -7,6 +7,7 @@ import math
 import mimetypes
 import os
 import sqlite3
+import signal
 import threading
 import time
 import uuid
@@ -17,6 +18,7 @@ from urllib.parse import urlparse, parse_qs
 from urllib.request import Request, build_opener, HTTPRedirectHandler, ProxyHandler
 from ..shared.storage import History, merge_disk_io
 from .bundle import agent_archive
+from .version import release_info
 
 class NoRedirect(HTTPRedirectHandler):
     def redirect_request(self,*args):
@@ -283,8 +285,10 @@ def handler(dashboard,token,dist):
                     self.send_header('Cache-Control','no-store')
                     self.end_headers(); self.wfile.write(body)
                     return
+                if parsed.path=='/api/version':
+                    self.reply(200,release_info()); return
                 if parsed.path=='/api/hosts':
-                    self.reply(200,{'hosts':dashboard.public_hosts(),'demo':dashboard.demo,'timestamp':time.time()}); return
+                    self.reply(200,{'hosts':dashboard.public_hosts(),'demo':dashboard.demo,'timestamp':time.time(),'version':release_info()}); return
                 if parsed.path.startswith('/api/history/'):
                     hid=parsed.path.rsplit('/',1)[-1]
                     try: days=int(parse_qs(parsed.query).get('days',['1'])[0])
@@ -347,12 +351,22 @@ def main():
     if args.bind not in ('127.0.0.1','::1','localhost') and len(token)<24:
         p.error('For LAN access, set HOMELAB_DASHBOARD_TOKEN (24+ characters)')
     dashboard=Dashboard(args.data,args.demo,retention_days=args.retention_days)
-    threading.Thread(target=dashboard.run,daemon=True).start()
+    worker=threading.Thread(target=dashboard.run,daemon=True)
+    worker.start()
     dist=Path(__file__).resolve().parents[2]/'dist'
     print(f'Dashboard: http://{args.bind}:{args.port}',flush=True)
+    def stop(signum,frame):raise KeyboardInterrupt
+    previous_term=signal.signal(signal.SIGTERM,stop)
+    server=None
     try:
-        ThreadingHTTPServer((args.bind,args.port),handler(dashboard,token,dist)).serve_forever()
+        server=ThreadingHTTPServer((args.bind,args.port),handler(dashboard,token,dist))
+        server.serve_forever()
+    except KeyboardInterrupt:
+        pass
     finally:
         dashboard.close()
+        if server:server.server_close()
+        worker.join(timeout=20)
+        signal.signal(signal.SIGTERM,previous_term)
 
 if __name__=='__main__': main()

@@ -44,3 +44,7 @@ docs/                 Пользовательская и техническая
 Go-агент — отдельный модуль `agent/go.mod`. Сборка без CGo: `CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build ./cmd/homelab-agent` из `agent/`. Сборщики оборудования находятся только в Go-агенте; дашборд использует Python standard library и только опрашивает API зарегистрированных агентов. Для Linux smoke-теста сначала соберите бинарник в `releases/homelab-agent_linux_amd64` либо задайте `HOMELAB_AGENT_BINARY`. GitHub Actions собирает обе архитектуры по тегу `agent-vX.Y.Z`, публикуя бинарники и SHA256SUMS в Releases.
 
 Интеграционная проверка bootstrap-установщика и границы её достоверности описаны в [installer-testing.md](installer-testing.md).
+
+## Docker-релизы дашборда
+
+Сборка и публикация GHCR выполняются по тегам `dashboard-vX.Y.Z`. Запуск и обновление — стандартным Docker Compose. Описание образа, версий, backup и миграции из systemd: [Docker deployment](docker.md). Для локальной проверки двух образов используйте `tests/docker_smoke.py --image FIRST --next-image SECOND`; образы должны сообщать разные версии. Тест создаёт и удаляет только свой контейнер и volume с уникальным именем.

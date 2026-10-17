@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -65,7 +66,7 @@ type upgradeActions struct {
 
 var releaseTagPattern = regexp.MustCompile(`^agent-v[0-9][a-zA-Z0-9._+-]*$`)
 
-const latestReleaseAPI = "https://api.github.com/repos/nikitakiselev/homelab-dashboard/releases/latest"
+const latestReleaseAPI = "https://api.github.com/repos/nikitakiselev/homelab-dashboard/releases?per_page=100&page=1"
 
 func Upgrade(version, config, env string) error {
 	if runtime.GOOS != "linux" || os.Geteuid() != 0 {
@@ -98,25 +99,10 @@ func performUpgrade(version, currentVersion, arch, config, env string, actions u
 	defer os.RemoveAll(dir)
 	tag := version
 	if tag == "latest" {
-		if err = actions.fetch(latestReleaseAPI, dir+"/release.json", 1<<20); err != nil {
-			return fmt.Errorf("cannot check latest release: %w", err)
+		tag, err = latestAgentRelease(dir, actions.fetch)
+		if err != nil {
+			return err
 		}
-		raw, readErr := os.ReadFile(dir + "/release.json")
-		if readErr != nil {
-			return readErr
-		}
-		var release struct {
-			Tag        string `json:"tag_name"`
-			Draft      bool   `json:"draft"`
-			Prerelease bool   `json:"prerelease"`
-		}
-		if err = json.Unmarshal(raw, &release); err != nil {
-			return fmt.Errorf("invalid latest release response: %w", err)
-		}
-		if !releaseTagPattern.MatchString(release.Tag) || release.Draft || release.Prerelease {
-			return fmt.Errorf("latest release is not a published stable agent release")
-		}
-		tag = release.Tag
 	}
 	targetVersion := strings.TrimPrefix(tag, "agent-v")
 	fmt.Fprintf(actions.output, "Available version: %s\n", targetVersion)
@@ -333,4 +319,64 @@ func copyFile(source, dest string, mode os.FileMode) error {
 		return err
 	}
 	return e
+}
+
+// Dashboard releases share the repository, never the agent version channel.
+func latestAgentRelease(dir string, fetch func(string, string, int64) error) (string, error) {
+	stable := regexp.MustCompile(`^agent-v([0-9]+)\.([0-9]+)\.([0-9]+)$`)
+	var best [3]int64
+	selected := ""
+	for page := 1; page <= 10; page++ {
+		url := strings.TrimSuffix(latestReleaseAPI, "1") + strconv.Itoa(page)
+		path := dir + "/release.json"
+		if err := fetch(url, path, 4<<20); err != nil {
+			return "", fmt.Errorf("cannot check agent releases: %w", err)
+		}
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			return "", err
+		}
+		var releases []struct {
+			Tag        string `json:"tag_name"`
+			Draft      bool   `json:"draft"`
+			Prerelease bool   `json:"prerelease"`
+		}
+		if err = json.Unmarshal(raw, &releases); err != nil {
+			return "", fmt.Errorf("invalid release list: %w", err)
+		}
+		for _, release := range releases {
+			parts := stable.FindStringSubmatch(release.Tag)
+			if parts == nil || release.Draft || release.Prerelease {
+				continue
+			}
+			var version [3]int64
+			valid := true
+			for i := range version {
+				version[i], err = strconv.ParseInt(parts[i+1], 10, 64)
+				if err != nil {
+					valid = false
+				}
+			}
+			if !valid {
+				continue
+			}
+			greater := selected == ""
+			for i := range version {
+				if version[i] != best[i] {
+					greater = version[i] > best[i]
+					break
+				}
+			}
+			if greater {
+				best, selected = version, release.Tag
+			}
+		}
+		if len(releases) < 100 {
+			if selected == "" {
+				return "", fmt.Errorf("no published stable agent release found")
+			}
+			return selected, nil
+		}
+	}
+	return "", fmt.Errorf("too many releases; specify --version agent-vX.Y.Z")
 }

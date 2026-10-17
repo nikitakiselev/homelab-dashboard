@@ -44,6 +44,10 @@ Run `python3 -m unittest discover -s tests -v`, `npm run build`, `sh -n install.
 
 Follow [Git workflow rules](docs/git-workflow.md). Use Conventional Commits and write all commit messages in English, for example `feat(agent): add sleep-aware disk monitoring`. The primary branch is `main`. While the project has one developer, direct commits and pushes to `main` are allowed; task branches and PRs are optional. When using branches, create them from `main` and target PRs to it. PRs should describe the problem, resulting behavior, validation, and material limitations; link relevant issues and include anonymized UI screenshots when useful. Update documentation when commands, YAML, APIs, or platform support change.
 
+## Dashboard Images
+
+Deliver the dashboard as a non-root GHCR image and Docker Compose service, independently of Linux agents. Tag releases `dashboard-vX.Y.Z`, build Linux amd64/arm64 images, and publish GitHub notes with `--latest=false` for old agent compatibility. Keep SQLite in a persistent SSD-backed volume and credentials outside the image. Verify authenticated health checks, backup, container recreation and rollback with preserved data. Never mount the Docker socket or host devices into the dashboard. Docker Compose health checks do not imply automatic rollback; document rollback and database compatibility honestly.
+
 ## Security & Configuration
 
 Never commit tokens, private keys, SQLite databases, generated artifacts, or real hostnames and LAN addresses. Use synthetic examples. Report vulnerabilities according to `SECURITY.md`.

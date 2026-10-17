@@ -1,0 +1,78 @@
+# Дашборд в Docker
+
+Основной способ доставки дашборда — готовый образ `ghcr.io/nikitakiselev/homelab-dashboard`. Образ содержит Python и собранный frontend, работает от UID/GID 10001 и поддерживает `linux/amd64` и `linux/arm64`. В нём нет Node.js, SMART-утилит и агента. Linux-агенты устанавливаются отдельно на наблюдаемых хостах.
+
+Теги `0.1.0`, `0.2.0` и т. п. обозначают конкретные релизы; `stable` указывает на последний опубликованный стабильный образ. Для воспроизводимого развёртывания закрепите версию или digest в `HOMELAB_DASHBOARD_IMAGE`. Запущенные версия и commit показаны в UI и авторизованном `/api/version`.
+
+## Первый запуск
+
+Нужны Docker Engine и Docker Compose v2 с поддержкой `up --wait`. Создайте отдельный каталог и скачайте два файла из репозитория либо из assets конкретного dashboard-релиза:
+
+```sh
+mkdir -p homelab-dashboard
+cd homelab-dashboard
+curl -fsSLO https://raw.githubusercontent.com/nikitakiselev/homelab-dashboard/main/compose.yaml
+curl -fsSL https://raw.githubusercontent.com/nikitakiselev/homelab-dashboard/main/.env.example -o .env
+chmod 600 .env
+openssl rand -hex 32
+```
+
+Запишите полученный токен в `HOMELAB_DASHBOARD_TOKEN` внутри `.env`. Это токен входа в дашборд, не токен агента. Не публикуйте `.env` и вывод `docker compose config`: там может оказаться токен.
+
+```sh
+docker compose pull
+docker compose up -d --wait
+docker compose ps
+```
+
+По умолчанию UI доступен только на `http://127.0.0.1:8080`. Для LAN задайте в `.env` `HOMELAB_DASHBOARD_BIND` равным LAN-адресу хоста или `0.0.0.0`. Для доступа извне используйте собственный reverse proxy с TLS либо VPN. Агент на этом же хосте добавляется по LAN-адресу: `127.0.0.1` из обычного bridge-контейнера относится к самому контейнеру, а не к хосту. Не включайте host network или privileged ради сбора оборудования: дашборд общается с отдельными агентами по HTTP.
+
+SQLite находится в `/data/dashboard.sqlite` внутри постоянного named volume `homelab-dashboard_dashboard-data` при стандартном имени Compose-проекта. Срок хранения задаётся `HOMELAB_DASHBOARD_RETENTION_DAYS` в `.env`, по умолчанию 90 дней. Volume должен физически находиться на SSD; проверьте размещение Docker data-root. Смена каталога проекта не меняет имя volume благодаря `name: homelab-dashboard`. Для нескольких независимых установок используйте разные `docker compose -p ...` и порты.
+
+## Обновление
+
+Сначала сохраните согласованную копию SQLite — это можно сделать при работающем дашборде:
+
+```sh
+docker compose exec -T dashboard python -m homelab.server.backup
+docker compose pull
+docker compose up -d --wait
+docker compose ps
+```
+
+Копия появляется в `/data/backups/` с датой UTC и уникальным суффиксом, права файла — 0600. Она включает настройки серверов и токены агентов. Резервные копии внутри того же volume не защищают от потери самого носителя: периодически копируйте их на отдельное хранилище, например `docker compose cp dashboard:/data/backups ./backups`.
+
+Если в `.env` закреплён конкретный тег, сначала измените его на нужный релиз. При `stable` команда `pull` получает новый опубликованный образ. Скачивание происходит до пересоздания контейнера. Пересоздание сохраняет volume и токен из `.env`; сборки на сервере нет. Во время перезапуска возможен короткий перерыв доступа, независимые агенты продолжают собирать историю.
+
+`up --wait` проверяет healthcheck с авторизацией и версией, но **не выполняет автоматический откат**. При ошибке посмотрите `docker compose logs --tail=100 dashboard`, закрепите предыдущий тег и запустите его по инструкции ниже. Не используйте `down -v`: эта команда удаляет данные.
+
+## Откат
+
+Укажите прежний тег в `HOMELAB_DASHBOARD_IMAGE`, например:
+
+```dotenv
+HOMELAB_DASHBOARD_IMAGE=ghcr.io/nikitakiselev/homelab-dashboard:0.1.0
+```
+
+Затем:
+
+```sh
+docker compose pull
+docker compose up -d --wait
+```
+
+Откат образа сохраняет текущую базу. Совместимость формата данных должна быть указана в release notes: текущая схема — 1. Для будущей несовместимой миграции потребуется восстановить **соответствующую** резервную копию при остановленном дашборде; это отдельное действие, которое теряет изменения после снимка. Замена образа сама по себе не откатывает базу.
+
+## Переход с systemd
+
+Не запускайте обе установки на одной SQLite и одном порту одновременно. Остановите старую службу, сохраните согласованную копию `/var/lib/homelab/dashboard.sqlite`, перенесите её в `/data/dashboard.sqlite` volume и обеспечьте владельца UID/GID 10001. Перенесите прежний `HOMELAB_DASHBOARD_TOKEN` из `/etc/homelab/dashboard.env` в `.env`, чтобы не менять вход в UI. База содержит список серверов, их токены и историю, повторно регистрировать хосты не нужно.
+
+Старые unit/env/SQLite сохраняйте до проверки новой установки. После проверки отключите автозапуск `homelab-dashboard.service`. Агент `homelab-agent.service` продолжает работать независимо.
+
+## Разработка и выпуск
+
+Локальная сборка: `docker build -t homelab-dashboard:dev .`. Без build args версия явно обозначается как `development`.
+
+Тег `dashboard-vX.Y.Z` запускает `.github/workflows/dashboard-release.yml`: тесты, реальное обновление и откат контейнеров с одним volume, multi-platform сборку и публикацию GHCR. Версия и полный commit записываются в образ; `.dockerignore` исключает локальные данные и секреты. Compose и `.env.example` прикладываются к GitHub Release. Dashboard-релизы публикуются с `--latest=false`, чтобы не ломать старые установщики агентов; новый CLI агента фильтрует релизы по `agent-v`.
+
+При первой публикации GHCR по умолчанию создаёт private package. Перед объявлением публичного релиза нужно сделать package публичным в GitHub Packages и проверить анонимное скачивание. Процесс публикации описан в [документации GitHub](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry).

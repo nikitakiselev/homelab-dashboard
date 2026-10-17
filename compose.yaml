@@ -1,0 +1,30 @@
+name: homelab-dashboard
+
+services:
+  dashboard:
+    image: ${HOMELAB_DASHBOARD_IMAGE:-ghcr.io/nikitakiselev/homelab-dashboard:stable}
+    restart: unless-stopped
+    command:
+      - --bind
+      - 0.0.0.0
+      - --data
+      - /data/dashboard.sqlite
+      - --retention-days
+      - "${HOMELAB_DASHBOARD_RETENTION_DAYS:-90}"
+    ports:
+      - "${HOMELAB_DASHBOARD_BIND:-127.0.0.1}:${HOMELAB_DASHBOARD_PORT:-8080}:8080"
+    environment:
+      HOMELAB_DASHBOARD_TOKEN: ${HOMELAB_DASHBOARD_TOKEN:?Set HOMELAB_DASHBOARD_TOKEN in .env}
+    volumes:
+      - dashboard-data:/data
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 30s
+
+volumes:
+  dashboard-data:

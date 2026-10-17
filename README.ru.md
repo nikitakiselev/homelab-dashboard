@@ -8,6 +8,17 @@
 
 [Документация](docs/README.md) · [Проверки CI](https://github.com/nikitakiselev/homelab-dashboard/actions/workflows/checks.yml) · [Сообщить об ошибке](https://github.com/nikitakiselev/homelab-dashboard/issues)
 
+## Docker
+
+Рекомендуемый способ доставки дашборда — готовый образ `ghcr.io/nikitakiselev/homelab-dashboard:stable` и [Docker Compose](compose.yaml). Скопируйте [.env.example](.env.example) в `.env`, задайте токен и выполните:
+
+```sh
+docker compose pull
+docker compose up -d --wait
+```
+
+Данные хранятся в постоянном volume, агенты устанавливаются отдельно. [Обновление, резервные копии и откат](docs/docker.md).
+
 ## Возможности
 
 - Дашборд и Linux-агент — независимые службы со своими настройками, токенами, базами и обновлениями.

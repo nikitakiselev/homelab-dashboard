@@ -21,7 +21,7 @@ func TestUpgradeAlreadyCurrentDoesNotDownloadOrInstall(t *testing.T) {
 					if url != latestReleaseAPI {
 						t.Fatalf("unnecessary binary download: %s", url)
 					}
-					return os.WriteFile(path, []byte(`{"tag_name":"agent-v0.3.1"}`), 0600)
+					return os.WriteFile(path, []byte(`[{"tag_name":"agent-v0.3.1"}]`), 0600)
 				},
 				binaryVersion: func(string) (string, error) { t.Fatal("unnecessary executable run"); return "", nil },
 				install:       func(string, string, string) error { t.Fatal("same-version update changed installation"); return nil },
@@ -58,7 +58,7 @@ func TestUpgradePinsReleaseVerifiesAndReportsChange(t *testing.T) {
 					downloads = append(downloads, url)
 					switch url {
 					case latestReleaseAPI:
-						return os.WriteFile(path, []byte(`{"tag_name":"agent-v0.3.2"}`), 0600)
+						return os.WriteFile(path, []byte(`[{"tag_name":"agent-v0.3.2"}]`), 0600)
 					case releaseBase + "/download/agent-v" + expected + "/SHA256SUMS":
 						return os.WriteFile(path, []byte(fmt.Sprintf("%x  %s\n", sha256.Sum256(payload), asset)), 0600)
 					case releaseBase + "/download/agent-v" + expected + "/" + asset:
@@ -110,13 +110,13 @@ func TestUpgradeFailuresNeverTouchInstalledAgent(t *testing.T) {
 						case "json":
 							return os.WriteFile(path, []byte("invalid"), 0600)
 						case "tag":
-							return os.WriteFile(path, []byte(`{"tag_name":"agent-v0.3.2/../../other"}`), 0600)
+							return os.WriteFile(path, []byte(`[{"tag_name":"agent-v0.3.2/../../other"}]`), 0600)
 						case "draft":
-							return os.WriteFile(path, []byte(`{"tag_name":"agent-v0.3.2","draft":true}`), 0600)
+							return os.WriteFile(path, []byte(`[{"tag_name":"agent-v0.3.2","draft":true}]`), 0600)
 						case "prerelease":
-							return os.WriteFile(path, []byte(`{"tag_name":"agent-v0.3.2","prerelease":true}`), 0600)
+							return os.WriteFile(path, []byte(`[{"tag_name":"agent-v0.3.2","prerelease":true}]`), 0600)
 						}
-						return os.WriteFile(path, []byte(`{"tag_name":"agent-v0.3.2"}`), 0600)
+						return os.WriteFile(path, []byte(`[{"tag_name":"agent-v0.3.2"}]`), 0600)
 					}
 					if strings.HasSuffix(url, "SHA256SUMS") {
 						line := fmt.Sprintf("%x  homelab-agent_linux_amd64\n", sha256.Sum256(payload))
@@ -167,5 +167,14 @@ func TestUpgradeRejectsInvalidTagBeforeNetwork(t *testing.T) {
 		if err := performUpgrade(tag, "0.3.1", "amd64", "config", "env", actions); err == nil {
 			t.Fatalf("invalid tag accepted: %q", tag)
 		}
+	}
+}
+
+func TestAgentReleaseChannelIgnoresDashboardAndDrafts(t *testing.T) {
+	tag, err := latestAgentRelease(t.TempDir(), func(url, path string, limit int64) error {
+		return os.WriteFile(path, []byte(`[{"tag_name":"dashboard-v99.0.0"},{"tag_name":"agent-v0.2.0"},{"tag_name":"agent-v0.3.0"},{"tag_name":"agent-v0.4.0","draft":true},{"tag_name":"agent-v0.5.0","prerelease":true}]`), 0600)
+	})
+	if err != nil || tag != "agent-v0.3.0" {
+		t.Fatalf("%s %v", tag, err)
 	}
 }

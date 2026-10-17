@@ -8,6 +8,17 @@ A dashboard for monitoring home servers: CPU, GPU, memory, storage, SMART health
 
 [Documentation (Russian)](docs/README.md) · [CI checks](https://github.com/nikitakiselev/homelab-dashboard/actions/workflows/checks.yml) · [Report an issue](https://github.com/nikitakiselev/homelab-dashboard/issues)
 
+## Docker deployment
+
+The dashboard is delivered as `ghcr.io/nikitakiselev/homelab-dashboard:stable` for Linux amd64 and arm64. Download [compose.yaml](compose.yaml), copy [.env.example](.env.example) to `.env`, and set a private dashboard token:
+
+```sh
+docker compose pull
+docker compose up -d --wait
+```
+
+Updates use the same commands; pin a release tag to roll back. SQLite lives in a persistent volume. See [Docker deployment, backups and migration](docs/docker.md). Linux agents are installed separately.
+
 ## Features
 
 - Independent dashboard and Linux agent services, with separate configuration, credentials, databases, and updates.
