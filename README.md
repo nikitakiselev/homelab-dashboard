@@ -45,6 +45,14 @@ docker compose ps
 
 Open `http://127.0.0.1:8080`, or `http://<server-IP>:8080` if LAN access is enabled, and sign in with your token. Install agents separately as described below. When adding an agent on the Docker host, use its LAN address: `127.0.0.1` inside the container refers to the container itself.
 
+To open the dashboard without signing in from your home network, add this to `.env`:
+
+```dotenv
+HOMELAB_DASHBOARD_TRUSTED_NETWORKS=192.168.50.0/24
+```
+
+Replace the example with your subnet. All its devices receive full access without a token; other clients still need one. Multiple IPs/CIDRs can be comma-separated; the default is empty. Apply changes with `docker compose up -d --wait`. Existing installations also need the updated `compose.yaml` to pass this setting into the container. See [Docker/proxy limitations (Russian)](docs/docker.md#вход-без-токена-в-домашней-сети).
+
 The running version is displayed in the UI. SQLite lives in the persistent `homelab-dashboard_dashboard-data` volume, which should reside on an SSD. Keep `.env` private. Do not run `docker compose down -v` if you want to retain data.
 
 ### Updates

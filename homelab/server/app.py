@@ -259,7 +259,24 @@ class Dashboard:
                 for k,group in sorted(grouped.items())]
 
 
-def handler(dashboard,token,dist):
+def trusted_networks(value):
+    """Explicit IP/CIDR allowlist; an empty setting keeps token authentication."""
+    if not value.strip(): return ()
+    entries=[entry.strip() for entry in value.split(',')]
+    if any(not entry for entry in entries):
+        raise ValueError('Empty network in HOMELAB_DASHBOARD_TRUSTED_NETWORKS')
+    return tuple(ipaddress.ip_network(entry,strict=True) for entry in entries)
+
+
+def trusted_client(peer,networks):
+    try: ip=ipaddress.ip_address(peer)
+    except ValueError: return False
+    if isinstance(ip,ipaddress.IPv6Address) and ip.ipv4_mapped:
+        ip=ip.ipv4_mapped
+    return any(ip in network for network in networks)
+
+
+def handler(dashboard,token,dist,networks=()):
     class Handler(BaseHTTPRequestHandler):
         def reply(self,status,value):
             body=json.dumps(value,ensure_ascii=False).encode()
@@ -270,7 +287,9 @@ def handler(dashboard,token,dist):
             self.end_headers(); self.wfile.write(body)
 
         def authorized(self):
-            return not token or hmac.compare_digest(self.headers.get('Authorization',''),'Bearer '+token)
+            # Forwarded headers are user-controlled unless a proxy is explicitly trusted.
+            return (not token or trusted_client(self.client_address[0],networks)
+                    or hmac.compare_digest(self.headers.get('Authorization',''),'Bearer '+token))
 
         def do_GET(self):
             parsed=urlparse(self.path)
@@ -348,6 +367,8 @@ def main():
     if args.collector_config:
         print('Built-in collection has been removed; --collector-config is ignored. Run a separate homelab-agent.',flush=True)
     token=os.getenv('HOMELAB_DASHBOARD_TOKEN','')
+    try: networks=trusted_networks(os.getenv('HOMELAB_DASHBOARD_TRUSTED_NETWORKS',''))
+    except ValueError as e: p.error(f'Invalid HOMELAB_DASHBOARD_TRUSTED_NETWORKS: {e}')
     if args.bind not in ('127.0.0.1','::1','localhost') and len(token)<24:
         p.error('For LAN access, set HOMELAB_DASHBOARD_TOKEN (24+ characters)')
     dashboard=Dashboard(args.data,args.demo,retention_days=args.retention_days)
@@ -359,7 +380,7 @@ def main():
     previous_term=signal.signal(signal.SIGTERM,stop)
     server=None
     try:
-        server=ThreadingHTTPServer((args.bind,args.port),handler(dashboard,token,dist))
+        server=ThreadingHTTPServer((args.bind,args.port),handler(dashboard,token,dist,networks))
         server.serve_forever()
     except KeyboardInterrupt:
         pass

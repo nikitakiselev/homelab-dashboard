@@ -23,10 +23,11 @@ def main():
     name = 'homelab-dashboard-test-' + uuid.uuid4().hex[:12]
     volume = name + '-data'
     docker('volume', 'create', volume)
-    def start(image):
+    def start(image, networks=''):
         docker('run', '-d', '--name', name, '--read-only', '--cap-drop=ALL', '--security-opt=no-new-privileges',
                '--tmpfs', '/tmp:rw,noexec,nosuid,size=16m', '-v', volume + ':/data',
-               '-p', '127.0.0.1::8080', '-e', 'HOMELAB_DASHBOARD_TOKEN=' + TOKEN, image)
+               '-p', '127.0.0.1::8080', '-e', 'HOMELAB_DASHBOARD_TOKEN=' + TOKEN,
+               '-e', 'HOMELAB_DASHBOARD_TRUSTED_NETWORKS=' + networks, image)
         port = json.loads(docker('inspect', name))[0]['NetworkSettings']['Ports']['8080/tcp'][0]['HostPort']
         base = 'http://127.0.0.1:' + port
         def get(path):
@@ -63,14 +64,15 @@ def main():
         snapshot = docker('exec', name, 'python', '-m', 'homelab.server.backup')
         docker('exec', name, 'python', '-c', 'import sqlite3,os,sys;db=sqlite3.connect(sys.argv[1]);assert db.execute("PRAGMA integrity_check").fetchone()[0]=="ok";assert db.execute("SELECT count(*) FROM history WHERE host=?",("fixture",)).fetchone()[0]==1;assert os.stat(sys.argv[1]).st_mode & 0o777==0o600;db.close()', snapshot)
         stop()
-        second, get = start(args.next_image)
+        second, get = start(args.next_image, '127.0.0.1/32')
         assert second['version'] != first['version']
+        docker('exec', name, 'python', '-c', 'from urllib.request import urlopen;assert urlopen("http://127.0.0.1:8080/api/version",timeout=3).status==200')
         saved()
         stop()
         restored, get = start(args.image)
         assert restored == first
         saved()
-        print('PASS: non-root/read-only image, authenticated API/health check, consistent backup, image update and rollback with preserved SQLite')
+        print('PASS: non-root/read-only image, authenticated API/health check, trusted-client access, consistent backup, image update and rollback with preserved SQLite')
     finally:
         subprocess.run(['docker', 'rm', '-f', name], capture_output=True)
         subprocess.run(['docker', 'volume', 'rm', volume], capture_output=True, check=True)

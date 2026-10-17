@@ -15,6 +15,7 @@ services:
       - "${HOMELAB_DASHBOARD_BIND:-127.0.0.1}:${HOMELAB_DASHBOARD_PORT:-8080}:8080"
     environment:
       HOMELAB_DASHBOARD_TOKEN: ${HOMELAB_DASHBOARD_TOKEN:?Set HOMELAB_DASHBOARD_TOKEN in .env}
+      HOMELAB_DASHBOARD_TRUSTED_NETWORKS: ${HOMELAB_DASHBOARD_TRUSTED_NETWORKS:-}
     volumes:
       - dashboard-data:/data
     read_only: true
