@@ -201,3 +201,25 @@ func TestSMARTConfigRequiresExplicitScopeAndDailyBudget(t *testing.T) {
 		t.Fatal("SMART enabled by default")
 	}
 }
+
+func TestPowerStateIsConfigurableDiskMetric(t *testing.T) {
+	for _, tc := range []struct {
+		yaml           string
+		enabled, valid bool
+	}{
+		{"collection:\n  disks:\n    interval_seconds: 60\n", true, true},
+		{"collection:\n  disks:\n    power_state: false\n", false, true},
+		{"collection:\n  disks:\n    power_state: true\n", true, true},
+		{"collection:\n  disks:\n    power_state: 'false'\n", false, false},
+	} {
+		p := filepath.Join(t.TempDir(), "agent.yaml")
+		os.WriteFile(p, []byte(tc.yaml), 0600)
+		c, err := LoadConfig(p)
+		if (err == nil) != tc.valid {
+			t.Fatalf("%q: %v", tc.yaml, err)
+		}
+		if err == nil && c.Collection.Disks.PowerState != tc.enabled {
+			t.Fatalf("%q: %+v", tc.yaml, c.Collection.Disks)
+		}
+	}
+}

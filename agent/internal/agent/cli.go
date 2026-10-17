@@ -140,6 +140,7 @@ func CLI(args []string) error {
 		return nil
 	case "doctor":
 		fmt.Printf("History database: %s\nATA SMART: enabled=%t, interval=%.0fs, allowed serials=%d\nATA policy: observed I/O, CHECK POWER MODE, guarded read; no USB/SAS autodetection\nHistory storage: use an SSD to avoid keeping an HDD awake with database writes\n", c.History.Path, c.Collection.SMART.Enabled, c.Collection.SMART.Interval, len(c.Collection.SMART.Serials))
+		fmt.Printf("HDD power metric: enabled=%t, interval=%.0fs (CHECK POWER MODE only)\n", c.Collection.Disks.Enabled && c.Collection.Disks.PowerState, max(60, c.Collection.Disks.Interval))
 		fmt.Printf("Platform: %s/%s\nConfig: OK\nPort: %s:%d\n", runtime.GOOS, runtime.GOARCH, c.Server.Bind, c.Server.Port)
 		for _, name := range []string{"systemctl", "lsblk", "smartctl", "hdparm", "nvidia-smi", "intel_gpu_top"} {
 			path, err := exec.LookPath(name)

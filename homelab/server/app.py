@@ -78,6 +78,7 @@ def demo_metrics(index):
             'serial':f'DEMO-{index}-{i}', 'firmware':'1.0', 'interface':'nvme' if typ=='NVMe' else 'sata',
             'rotation_rate':5400 if typ=='HDD' else 0,
             'power_state':'standby' if index==0 and typ=='HDD' else 'active',
+            'power_checked_at':now, 'power_interval_seconds':60,
             'smart_state':'sleeping' if index==0 and typ=='HDD' else 'fresh',
             'smart_updated_at':now-3600 if index==0 and typ=='HDD' else now,
             'usage_updated_at':now-3600 if index==0 and typ=='HDD' else now,

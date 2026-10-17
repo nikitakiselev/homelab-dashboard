@@ -35,6 +35,9 @@ type Disk struct {
 	Interface            string   `json:"interface,omitempty"`
 	RotationRate         *float64 `json:"rotation_rate,omitempty"`
 	PowerState           string   `json:"power_state,omitempty"`
+	PowerCheckedAt       *float64 `json:"power_checked_at,omitempty"`
+	PowerError           string   `json:"power_error,omitempty"`
+	PowerInterval        float64  `json:"power_interval_seconds,omitempty"`
 	SMARTState           string   `json:"smart_state,omitempty"`
 	SMARTUpdatedAt       *float64 `json:"smart_updated_at,omitempty"`
 	UsageUpdatedAt       *float64 `json:"usage_updated_at,omitempty"`

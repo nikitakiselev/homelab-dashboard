@@ -69,6 +69,7 @@ import {
   type Disk,
   type Point,
 } from "./lib";
+import { DiskStatus, getDiskStatus } from "./components/disk-status";
 import "./index.css";
 
 type View = "overview" | "servers" | "storage" | "network";
@@ -381,7 +382,7 @@ function App({ view }: { view: View }) {
                   {view === "overview"
                     ? "Состояние серверов и использование ресурсов."
                     : view === "storage"
-                      ? "Ёмкость, файловые системы и SMART."
+                      ? "Состояние дисков, заполнение и SMART."
                       : view === "network"
                         ? "Текущая скорость и история трафика ваших серверов."
                         : "Подключённые хосты и их ресурсы."}
@@ -653,7 +654,10 @@ function App({ view }: { view: View }) {
                           Последние доступные данные. Сервер не в сети.
                         </p>
                       )}
-                      <DiskList disks={h.metrics?.disks || []} />
+                      <DiskList
+                        disks={h.metrics?.disks || []}
+                        online={h.online}
+                      />
                     </Card>
                   ))}
                   {!visible.length && (
@@ -810,7 +814,7 @@ function App({ view }: { view: View }) {
                               {warnings.length
                                 ? `${warnings.length} из ${allDisks.length} требуют проверки`
                                 : smartPassive
-                                  ? "Пассивный режим: дисковые команды не отправляются"
+                                  ? "SMART для части дисков не опрашивается"
                                   : smartUnchecked
                                     ? "Для части дисков нет свежих данных о состоянии"
                                     : "Предупреждений SMART нет"}
@@ -838,14 +842,10 @@ function App({ view }: { view: View }) {
                                 {h.metrics?.disks.map((d) => (
                                   <span
                                     key={d.name}
-                                    title={`${d.name}: ${healthText(d)}${d.smart_state ? ` · ${diskPowerText(d)}${d.smart_state !== "fresh" && d.smart_updated_at ? " · SMART ранее" : ""}` : ""}`}
+                                    title={`${d.name}: ${getDiskStatus(d, h.online).label} · ${healthText(d)}`}
                                     className={cn(
-                                      "h-1.5 w-4 rounded-full",
-                                      d.health === "healthy"
-                                        ? "bg-emerald-400/75"
-                                        : d.health === "unknown"
-                                          ? "bg-zinc-300"
-                                          : "bg-orange-400",
+                                      "h-2 w-2 rounded-full",
+                                      getDiskStatus(d, h.online).dot,
                                     )}
                                   />
                                 ))}
@@ -1252,12 +1252,6 @@ function healthText(d: Disk) {
     return "SMART: режим питания неизвестен";
   return "Нет данных о состоянии";
 }
-function diskPowerText(d: Disk) {
-  if (d.power_state === "standby" || d.power_state === "sleep")
-    return "Спал при опросе";
-  if (d.power_state === "active") return "Активен при опросе";
-  return "Режим неизвестен";
-}
 function diskSampleTime(value?: number | null) {
   if (value == null) return "ещё не получены";
   const minutes = Math.floor((Date.now() / 1000 - value) / 60);
@@ -1278,7 +1272,7 @@ function smartPolicyText(state: string) {
     passive:
       "Автоматический ATA SMART-опрос отключён или диск не входит в разрешённый список. Показаны метаданные и сохранённые показатели.",
     sleeping:
-      "При последней проверке диск находился в режиме сна. SMART пропущен, следующая попытка отложена. Текущее питание между проверками неизвестно.",
+      "При SMART-проверке диск спал, поэтому снимок не обновлён. Состояние питания показано отдельным индикатором.",
     skipped:
       "Опрос SMART пропущен: политика для этого подключения не настроена.",
     unsupported:
@@ -1353,7 +1347,13 @@ function DiskDetails({ disk: d }: { disk: Disk }) {
     </>
   );
 }
-function DiskList({ disks }: { disks: Disk[] }) {
+function DiskList({
+  disks,
+  online = true,
+}: {
+  disks: Disk[];
+  online?: boolean;
+}) {
   const [open, setOpen] = useState<string | null>(null);
   return (
     <div className="divide-y divide-zinc-100">
@@ -1376,18 +1376,7 @@ function DiskList({ disks }: { disks: Disk[] }) {
                   : ""}
               </div>
             </div>
-            {d.smart_state && (
-              <span
-                className={cn(
-                  "rounded-full px-2 py-1 text-[12px]",
-                  d.smart_state === "sleeping"
-                    ? "bg-blue-50 text-blue-700"
-                    : "bg-zinc-100 text-muted-foreground",
-                )}
-              >
-                {diskPowerText(d)}
-              </span>
-            )}
+            <DiskStatus disk={d} online={online} />
             <div className="min-w-[120px] flex-1 sm:max-w-60">
               <div className="mb-1.5 text-[12px] text-muted-foreground">
                 {d.volumes.length
@@ -1762,7 +1751,7 @@ function HostDetails({ host }: { host: Host }) {
       )}
       <div>
         <h3 className="text-sm font-semibold">Накопители · {m.disks.length}</h3>
-        <DiskList disks={m.disks} />
+        <DiskList disks={m.disks} online={host.online} />
       </div>
     </div>
   );

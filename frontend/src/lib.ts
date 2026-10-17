@@ -22,6 +22,9 @@ export type Disk = {
   interface?: string;
   rotation_rate?: number | null;
   power_state?: string;
+  power_checked_at?: number | null;
+  power_error?: string;
+  power_interval_seconds?: number;
   smart_state?: string;
   smart_updated_at?: number | null;
   usage_updated_at?: number | null;

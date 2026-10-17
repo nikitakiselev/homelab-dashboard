@@ -16,10 +16,13 @@ import (
 // A failed/skipped attempt consumes the same budget as a successful read.
 // Reserve it durably BEFORE even checking power, including on first startup.
 type smartRecord struct {
-	AttemptAt float64         `json:"attempt_at"`
-	SampleAt  float64         `json:"sample_at"`
-	Raw       json.RawMessage `json:"raw,omitempty"`
-	Outcome   string          `json:"outcome"`
+	AttemptAt      float64         `json:"attempt_at"`
+	SampleAt       float64         `json:"sample_at"`
+	Raw            json.RawMessage `json:"raw,omitempty"`
+	Outcome        string          `json:"outcome"`
+	PowerState     string          `json:"power_state,omitempty"`
+	PowerCheckedAt float64         `json:"power_checked_at,omitempty"`
+	PowerError     string          `json:"power_error,omitempty"`
 }
 
 func smartIdentity(d Disk) string {

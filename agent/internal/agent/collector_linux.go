@@ -5,6 +5,7 @@ package agent
 import (
 	"context"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"log"
 	"math"
@@ -72,7 +73,11 @@ func (c *Collector) Run(ctx context.Context) {
 					c.mu.RUnlock()
 					v, err := readDisks(ctx, previous, command)
 					if err == nil {
-						err = collectScheduledSMART(ctx, v, activity, time.Now(), c.Config.Collection.SMART, c.History, command)
+						// Power is a regular disk metric. It does not require
+						// browser interaction and never triggers SMART.
+						powerErr := collectDiskPower(ctx, v, time.Now(), c.Config.Collection.Disks, c.History, command)
+						smartErr := collectScheduledSMART(ctx, v, activity, time.Now(), c.Config.Collection.SMART, c.History, command)
+						err = errors.Join(powerErr, smartErr)
 					}
 					c.mu.Lock()
 					c.disks = v
@@ -285,11 +290,18 @@ func (c *Collector) Collect() error {
 	} else {
 		delete(c.diagnostics, "network")
 	}
+	disks := append([]Disk{}, c.disks...)
+	delete(c.diagnostics, "disk_power")
+	for i := range disks {
+		if err := loadDiskPowerObservation(&disks[i], c.History, time.Now(), c.Config.Collection.Disks); err != nil {
+			c.diagnostics["disk_power"] = err.Error()
+		}
+	}
 	diagnostics := map[string]string{}
 	for k, v := range c.diagnostics {
 		diagnostics[k] = v
 	}
-	m := Metrics{DiskIO: diskIO, Timestamp: float64(now.UnixNano()) / 1e9, Interval: c.Config.Collection.Interval, AgentID: c.ID, AgentVersion: Version, Hostname: hostname, OS: osname, Platform: "Linux", CPU: CPU{usage, runtime.NumCPU(), model}, Memory: Memory{mt, used, math.Round(float64(used)/float64(mt)*1000) / 10}, Network: network, Uptime: uptime, Disks: c.disks, GPUs: c.gpus, Diagnostics: diagnostics}
+	m := Metrics{DiskIO: diskIO, Timestamp: float64(now.UnixNano()) / 1e9, Interval: c.Config.Collection.Interval, AgentID: c.ID, AgentVersion: Version, Hostname: hostname, OS: osname, Platform: "Linux", CPU: CPU{usage, runtime.NumCPU(), model}, Memory: Memory{mt, used, math.Round(float64(used)/float64(mt)*1000) / 10}, Network: network, Uptime: uptime, Disks: disks, GPUs: c.gpus, Diagnostics: diagnostics}
 	c.latest = &m
 	c.mu.Unlock()
 	if usage != nil && c.History != nil {

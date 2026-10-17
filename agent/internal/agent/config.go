@@ -15,6 +15,11 @@ type ProbeConfig struct {
 	Enabled  bool    `yaml:"enabled"`
 	Interval float64 `yaml:"interval_seconds"`
 }
+type DiskConfig struct {
+	Enabled    bool    `yaml:"enabled"`
+	Interval   float64 `yaml:"interval_seconds"`
+	PowerState bool    `yaml:"power_state"`
+}
 type SMARTConfig struct {
 	Enabled  bool     `yaml:"enabled"`
 	Interval float64  `yaml:"interval_seconds"`
@@ -27,7 +32,7 @@ type Config struct {
 	} `yaml:"server"`
 	Collection struct {
 		Interval float64     `yaml:"interval_seconds"`
-		Disks    ProbeConfig `yaml:"disks"`
+		Disks    DiskConfig  `yaml:"disks"`
 		SMART    SMARTConfig `yaml:"smart"`
 		GPU      ProbeConfig `yaml:"gpu"`
 	} `yaml:"collection"`
@@ -45,7 +50,7 @@ func DefaultConfig() Config {
 	c.Server.Bind = "0.0.0.0"
 	c.Server.Port = 9108
 	c.Collection.Interval = 5
-	c.Collection.Disks = ProbeConfig{true, 60}
+	c.Collection.Disks = DiskConfig{true, 60, true}
 	c.Collection.SMART = SMARTConfig{Interval: 86400, Serials: []string{}}
 	c.Collection.GPU = ProbeConfig{true, 5}
 	c.Network.Interfaces = []string{}
@@ -113,7 +118,7 @@ func validateNode(n *yaml.Node, path string) error {
 				tag = "!!str"
 			case "server.port", "history.retention_days":
 				tag = "!!int"
-			case "collection.disks.enabled", "collection.gpu.enabled", "collection.smart.enabled":
+			case "collection.disks.power_state", "collection.disks.enabled", "collection.gpu.enabled", "collection.smart.enabled":
 				tag = "!!bool"
 			}
 			if tag != "" && v.Tag != tag {

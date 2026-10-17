@@ -7,6 +7,7 @@ collection:
   disks:
     enabled: true
     interval_seconds: 60
+    power_state: true # Direct SATA/ATA HDD CHECK POWER MODE; no SMART or wake commands.
   # Enable for ONE verified direct SATA disk first. USB/SAS are excluded.
   # The snapshot and attempt budget survive restart in history.path (use SSD).
   smart:
