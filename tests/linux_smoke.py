@@ -76,19 +76,16 @@ def main():
             restored=Dashboard(data+'/dashboard.sqlite')
             assert restored.public_hosts()[0]['metrics']['agent_version']==AGENT_VERSION
             assert restored.chart(hid,90),'Dashboard restart lost history'
-            builtin=Dashboard(data+'/builtin.sqlite',monitor_self=True)
-            try:
-                deadline=time.monotonic()+12
-                while time.monotonic()<deadline and not builtin.chart('local',1): time.sleep(.2)
-                own=builtin.public_hosts()[0]
-                assert own['local'] and own['online']
-                assert own['port'] is None
-                assert builtin.chart('local',1),'Built-in collector did not persist history'
-                assert own['metrics'].get('disk_io'),'Built-in /proc/diskstats sampling failed'
-                assert any(r.get('disk_io') for r in builtin.chart('local',1)),'Built-in disk I/O history missing'
-                print('PASS: central server collects its own Linux metrics without an external agent or agent port',flush=True)
-            finally:
-                builtin.close()
+            dashboard.close()
+            # Independent dashboard restarts leave the agent and its API running.
+            with urlopen(Request(base+'/v1/metrics',headers={'Authorization':'Bearer '+token})) as response:
+                assert json.load(response)['agent_id']==agent_id
+            restarted=Dashboard(data+'/dashboard.sqlite')
+            assert restarted.public_hosts()[0]['online'] is False
+            restarted.poll()
+            assert restarted.public_hosts()[0]['online']
+            assert all(not h.get('local') for h in restarted.public_hosts())
+            print('PASS: dashboard and Linux agent restart independently; loopback agent is a regular host',flush=True)
             print('PASS: real Linux CPU/memory/uptime, agent HTTP authorization, host registration, history sync and persistence',flush=True)
         finally:
             proc.terminate()

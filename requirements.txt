@@ -1,1 +1,1 @@
-PyYAML>=6.0.2,<7
+# The dashboard uses only Python's standard library. Agent dependencies are in agent/go.mod.

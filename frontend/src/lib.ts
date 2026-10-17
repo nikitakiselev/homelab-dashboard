@@ -77,7 +77,6 @@ export type Metrics = {
   network: { rx: number; tx: number; interfaces: string[] };
 };
 export type Host = {
-  local?: boolean;
   id: string;
   name: string;
   ip: string;

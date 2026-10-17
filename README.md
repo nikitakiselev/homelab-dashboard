@@ -10,9 +10,9 @@ A dashboard for monitoring home servers: CPU, GPU, memory, storage, SMART health
 
 ## Features
 
-- Central service with a built-in collector: a single computer needs no separate agent.
+- Independent dashboard and Linux agent services, with separate configuration, credentials, databases, and updates.
 - Standalone Go agents for Linux x86_64/ARM64; no Python or Go toolchain needed on agent hosts.
-- Connect additional Linux hosts using an IP address and token.
+- Connect each Linux host using an IP address and token, including the host running the dashboard.
 - CPU, memory, supported GPUs, uptime, and host availability.
 - HDD/SSD/NVMe capacity and disk I/O history; passive HDD monitoring, with automatic SMART only for NVMe. HDD temperature and filesystem usage may be unavailable or stale.
 - Dedicated server pages with CPU, memory, GPU, network, and disk I/O history for 24 hours, 7 days, 30 days, or 90 days.
@@ -23,13 +23,13 @@ A dashboard for monitoring home servers: CPU, GPU, memory, storage, SMART health
 
 The automatic installer targets Debian 12+ and Ubuntu 22.04+ with a running systemd instance. Supported architectures are x86_64 and ARM64. Inside a container, the collector sees resources available to that container; install an agent on the host to monitor physical hardware.
 
-**Central service with the built-in collector:**
+**Dashboard service:**
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/nikitakiselev/homelab-dashboard/main/install.sh | sudo sh
 ```
 
-**Agent only, on another Linux machine:**
+**Agent service, on each monitored Linux host:**
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/nikitakiselev/homelab-dashboard/main/install.sh | sudo sh -s -- --agent
@@ -54,15 +54,15 @@ npm run build
 python3 -m homelab.server
 ```
 
-Open [localhost:8080](http://127.0.0.1:8080). The computer running the central service appears automatically. Add `--demo` to display explicitly labeled synthetic data alongside real hosts.
+Open [localhost:8080](http://127.0.0.1:8080). The dashboard only displays explicitly registered agents. To monitor its own Linux host, install the agent separately and register it at `127.0.0.1:9108`. On macOS, only the dashboard runs. Add `--demo` to display explicitly labeled synthetic data alongside real hosts.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-    UI["Browser"] --> Server["Central service + built-in collector"]
+    UI["Browser"] --> Server["Dashboard HTTP service"]
     Server --> DB[("SQLite")]
-    Server -->|"HTTP/TCP · token"| Agents["Agents on other hosts"]
+    Server -->|"HTTP/TCP · token"| Agents["Linux agents, including the dashboard host"]
     Agents --> History[("Local history on each agent")]
 ```
 

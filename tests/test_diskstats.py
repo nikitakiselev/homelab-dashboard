@@ -2,65 +2,12 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
-from unittest.mock import patch
-from homelab.server.collectors.linux import Collector
 
-from homelab.server.collectors.diskstats import parse_diskstats, disk_deltas
 from homelab.server.app import Dashboard, demo_metrics
 from homelab.shared.storage import History
 
 
 class DiskStatsTests(unittest.TestCase):
-    def parse(self, raw):
-        return parse_diskstats(raw, lambda name: name == 'sda')
-
-    def test_parser_sector_units_and_reset(self):
-        old = self.parse('8 0 sda 10 0 100 0 20 0 200 0 0 0 0\n8 1 sda1 10 0 100 0 20 0 200 0 0 0 0\ninvalid')
-        current = self.parse('8 0 sda 12 0 110 0 23 0 220 0 0 0 0 0 0 0 0 0 0')
-        self.assertEqual(list(old), ['sda'])
-        self.assertEqual(disk_deltas(old, {}, 5), {})
-        self.assertEqual(disk_deltas(current, old, 5)['sda'],
-                         dict(read_bytes=5120, write_bytes=10240, read_ops=2, write_ops=3, seconds=5))
-        self.assertEqual(disk_deltas(old, current, 5), {})
-        self.assertEqual(disk_deltas(current, old, 0), {})
-        self.assertEqual(disk_deltas(current, current, 5)['sda']['read_bytes'], 0)
-        self.assertEqual(disk_deltas(current, self.parse(''), 5), {})
-        changed = self.parse('8 16 sda 12 0 110 0 23 0 220 0 0 0 0')
-        self.assertEqual(disk_deltas(changed, old, 5), {})
-        self.assertEqual(self.parse('8 0 sda 12 0 invalid 0 23 0 220 0 0 0 0'), {})
-
-    def test_builtin_collector_samples_without_hardware_commands(self):
-        with tempfile.TemporaryDirectory() as temp:
-            lines = ['8 0 sda 10 0 100 0 20 0 200 0 0 0 0']
-            def fixture(path, default=''):
-                return {'/proc/stat':'cpu 10 0 0 90 0 0 0 0',
-                        '/proc/meminfo':'MemTotal: 100 kB\nMemAvailable: 50 kB',
-                        '/proc/net/dev':'header\nheader', '/proc/uptime':'100 100',
-                        '/proc/diskstats':lines[0]}.get(str(path),default)
-            collector = Collector(History(Path(temp)/'test.sqlite'))
-            with patch('homelab.server.collectors.linux.read',side_effect=fixture), \
-                 patch('homelab.server.collectors.linux.Path.exists',return_value=True), \
-                 patch('homelab.server.collectors.linux.time.monotonic',side_effect=[10,15,20,25,30,35]), \
-                 patch('homelab.server.collectors.linux.command') as command:
-                collector.collect()
-                self.assertEqual(collector.latest['disk_io'],{})
-                lines[0] = '8 0 sda 12 0 110 0 23 0 220 0 0 0 0'
-                collector.collect()
-                self.assertEqual(collector.latest['disk_io']['sda']['read_bytes'],5120)
-                lines[0] = ''
-                collector.collect()
-                self.assertEqual(collector.latest['disk_io'],{})
-                self.assertIn('disk_io',collector.latest['diagnostics'])
-                lines[0] = '8 0 sda 12 0 110 0 23 0 220 0 0 0 0'
-                collector.collect()
-                self.assertEqual(collector.latest['disk_io'],{})
-                collector.collect()
-                self.assertEqual(collector.latest['disk_io']['sda']['read_bytes'],0)
-                collector.disks_enabled = False
-                collector.collect()
-                self.assertEqual(collector.latest['disk_io'],{})
-                command.assert_not_called()
-
     def test_persistence_sync_periods_and_missing_values(self):
         with tempfile.TemporaryDirectory() as temp:
             agent = History(Path(temp)/'agent.sqlite')

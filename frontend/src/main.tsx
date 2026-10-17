@@ -1029,7 +1029,7 @@ function ServerCard({ host: h, selected }: { host: Host; selected: boolean }) {
             {h.name}
           </h3>
           <div className="mt-1 flex items-center gap-2 text-[12px] text-muted-foreground">
-            <span>{h.local ? "Этот сервер" : h.ip}</span>
+            <span>{h.ip}</span>
             <span className="rounded border border-zinc-100 bg-zinc-50 px-1.5 py-px text-[12px]">
               {m?.platform === "Proxmox"
                 ? "Proxmox"
@@ -1041,7 +1041,7 @@ function ServerCard({ host: h, selected }: { host: Host; selected: boolean }) {
             </span>
           </div>
           <div className="mt-1 text-[12px] text-muted-foreground">
-            {h.local ? "Сборщик" : "Агент"}: {m?.agent_version || "Неизвестна"}
+            Агент: {m?.agent_version || "Неизвестна"}
           </div>
         </div>
         <div className="ml-auto flex flex-col items-end gap-1.5">
@@ -1634,9 +1634,7 @@ function HostDetails({ host }: { host: Host }) {
       <div>
         <h3 className="mb-3 text-sm font-semibold">Система</h3>
         <dl className="grid grid-cols-2 gap-y-3 text-sm">
-          <dt className="text-muted-foreground">
-            Версия {host.local ? "сборщика" : "агента"}
-          </dt>
+          <dt className="text-muted-foreground">Версия агента</dt>
           <dd className="text-right">{m.agent_version || "Неизвестна"}</dd>
           <dt className="text-muted-foreground">Имя хоста</dt>
           <dd className="text-right">{m.hostname}</dd>

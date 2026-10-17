@@ -3,7 +3,7 @@
 ## Project Structure & Module Organization
 
 - `frontend/src/`: React, TypeScript, Tailwind, and UI components in `components/ui/`. Vite uses `frontend/index.html` and outputs to `dist/`.
-- `homelab/server/`: HTTP API, polling, synchronization, and collectors. `homelab/shared/` contains YAML configuration and SQLite storage.
+- `homelab/server/`: HTTP API, polling, synchronization, and collectors. `homelab/shared/` contains dashboard SQLite storage. Hardware collection and agent YAML configuration belong only to the independent Go agent.
 - `agent/`: independent Go module for the Linux agent; CLI entry point in `cmd/homelab-agent/`, implementation and tests in `internal/agent/`.
 - `tests/`: Python tests and installation smoke scripts. `deploy/` contains installers, systemd units, and example configuration; `docs/` contains detailed Russian documentation.
 - `data/` and `releases/` hold ignored runtime data and generated binaries.
@@ -23,6 +23,10 @@ Use Python 3.10+, Node.js 22+, and the Go version in `agent/go.mod`.
 ## Coding Style & Naming Conventions
 
 Use two-space indentation, double quotes, and semicolons in TypeScript; let Prettier format changes. Use PascalCase React component names and lowercase component filenames. Python uses four-space indentation and snake_case names; follow nearby code. Format Go with `gofmt`. TypeScript strict checking is enabled; no lint script is configured.
+
+## Service Boundaries
+
+The dashboard is an HTTP client of independent Linux agents. Never embed hardware collectors or start an agent implicitly from the dashboard or its installer. The host running the dashboard uses a separately installed agent and the same registration API as any other Linux host. macOS runs the dashboard only. Keep each service's configuration, token, database, installation, and lifecycle independent.
 
 ## Passive HDD Monitoring
 

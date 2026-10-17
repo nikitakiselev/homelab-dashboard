@@ -54,7 +54,7 @@ fi
 export DEBIAN_FRONTEND=noninteractive
 printf 'Installing prerequisites for homelab-dashboard (%s)...\n' "$ROLE"
 apt-get update -qq
-apt-get install -y --no-install-recommends ca-certificates curl python3 python3-yaml
+apt-get install -y --no-install-recommends ca-certificates curl python3
 python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3,10) else "Python 3.10+ is required. Use Debian 12+ or Ubuntu 22.04+.")'
 WORKDIR=$(mktemp -d /tmp/homelab-install.XXXXXXXX)
 chmod 755 "$WORKDIR"
@@ -86,7 +86,7 @@ if [ "$ROLE" = server ]; then
     [ -f "$SOURCE/homelab/server/app.py" ] || fail 'Central server source is missing.'
 fi
 
-apt-get install -y --no-install-recommends xz-utils util-linux smartmontools sudo
+apt-get install -y --no-install-recommends xz-utils util-linux sudo
 if ! id homelab-build >/dev/null 2>&1; then
     useradd --system --no-create-home --shell /usr/sbin/nologin homelab-build
 fi

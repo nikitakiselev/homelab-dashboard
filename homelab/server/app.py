@@ -6,7 +6,6 @@ import json
 import math
 import mimetypes
 import os
-import platform
 import sqlite3
 import threading
 import time
@@ -16,10 +15,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
 from urllib.request import Request, build_opener, HTTPRedirectHandler, ProxyHandler
-from ..shared.storage import History, RETENTION, merge_disk_io
+from ..shared.storage import History, merge_disk_io
 from .bundle import agent_archive
-from .collectors import create_collector
-from ..shared.config import load_config
 
 class NoRedirect(HTTPRedirectHandler):
     def redirect_request(self,*args):
@@ -102,12 +99,13 @@ def demo_metrics(index):
                    'memory_used':4.2*1024**3,'memory_total':12*1024**3,'temperature':51}] if index==1 else []}
 
 class Dashboard:
-    def __init__(self,path,demo=False,monitor_self=False,collector_config=None):
-        self.history = History(path,retention_days=collector_config.retention_days if collector_config else 90)
+    def __init__(self,path,demo=False,retention_days=90):
+        if not 1<=retention_days<=3650: raise ValueError("Retention must be between 1 and 3650 days")
+        self.history = History(path,retention_days=retention_days)
         self.path = str(path)
         os.chmod(self.path,0o600)
         self.demo = demo
-        self.local_collector = None
+        self.stop_event = threading.Event()
         self.cache = {}
         self.errors = {}
         self.verified = set()
@@ -124,15 +122,8 @@ class Dashboard:
                 except ValueError:
                     pass
 
-        if monitor_self:
-            if platform.system() not in ('Linux','Darwin'):
-                raise ValueError('Built-in collection supports Linux and macOS')
-            self.local_collector = create_collector(self.history,history_host='local',config=collector_config)
-            self.local_collector.start()
-
     def close(self):
-        if self.local_collector:
-            self.local_collector.stop()
+        self.stop_event.set()
 
     @contextmanager
     def db(self):
@@ -189,9 +180,9 @@ class Dashboard:
         finally: self.poll_lock.release()
 
     def run(self):
-        while True:
+        while not self.stop_event.is_set():
             self.poll()
-            time.sleep(10)
+            self.stop_event.wait(10)
 
     def public_hosts(self):
         result=[]
@@ -202,12 +193,6 @@ class Dashboard:
                 result.append({'id':h['id'],'name':h['name'],'ip':h['ip'],'port':h['port'],
                     'online':online,'metrics':m,'error':self.errors.get(h['id']),
                     'history_error':self.errors.get(h['id']+'-history'),'demo':False})
-        if self.local_collector:
-            m = self.local_collector.latest
-            result.insert(0,{'id':'local','name':m['hostname'] if m else platform.node(),
-                'ip':'127.0.0.1','port':None,'local':True,'demo':False,'metrics':m,
-                'online':m is not None and time.time()-m['timestamp']<max(35,float(m.get('collection_interval',5))*3),
-                'error':self.local_collector.error,'history_error':None})
         if self.demo:
             result.extend({'id':f'demo-{i}','name':demo_metrics(i)['hostname'],'ip':f'192.168.1.{10+i*10}',
                 'port':9108,'online':True,'metrics':demo_metrics(i),'demo':True} for i in range(4))
@@ -222,8 +207,6 @@ class Dashboard:
         if not 1<=port<=65535: raise ValueError('Некорректный порт')
         if len(token)<24 or len(token)>256: raise ValueError('Токен агента: от 24 до 256 символов')
         m=validate_metrics(agent_get(ip,port,token,'/v1/metrics'))
-        if self.local_collector and m['agent_id']==self.local_collector.agent_id:
-            raise ValueError('Этот хост уже подключён встроенным сборщиком')
         hid=uuid.uuid4().hex
         try:
             with self.db() as db:
@@ -238,8 +221,6 @@ class Dashboard:
         return {'id':hid}
 
     def delete(self,hid):
-        if hid=='local':
-            raise ValueError('Встроенный сборщик отключается параметром --no-self-monitor')
         with self.db() as db:
             db.execute('DELETE FROM hosts WHERE id=?',(hid,))
             db.execute('DELETE FROM history WHERE host=?',(hid,))
@@ -354,16 +335,18 @@ def main():
     p.add_argument('--port',default=8080,type=int)
     p.add_argument('--data',default='./data/dashboard.sqlite')
     p.add_argument('--demo',action='store_true')
-    p.add_argument('--no-self-monitor',action='store_true',help='Disable the built-in local collector')
-    p.add_argument('--collector-config',type=Path)
+    p.add_argument('--retention-days',default=90,type=int,help='Dashboard history retention (1–3650 days)')
+    # Accept former startup flags for upgrades, without reading or starting a collector.
+    p.add_argument('--no-self-monitor',action='store_true',help=argparse.SUPPRESS)
+    p.add_argument('--collector-config',help=argparse.SUPPRESS)
     args=p.parse_args()
-    config_path=args.collector_config or (Path('/etc/homelab/collector.yaml') if Path('/etc/homelab/collector.yaml').exists() else None)
-    try:collector_config=load_config(config_path)
-    except ValueError as error:p.error(str(error))
+    if not 1<=args.retention_days<=3650:p.error('--retention-days must be between 1 and 3650')
+    if args.collector_config:
+        print('Built-in collection has been removed; --collector-config is ignored. Run a separate homelab-agent.',flush=True)
     token=os.getenv('HOMELAB_DASHBOARD_TOKEN','')
     if args.bind not in ('127.0.0.1','::1','localhost') and len(token)<24:
         p.error('For LAN access, set HOMELAB_DASHBOARD_TOKEN (24+ characters)')
-    dashboard=Dashboard(args.data,args.demo,monitor_self=platform.system() in ('Linux','Darwin') and not args.no_self_monitor,collector_config=collector_config)
+    dashboard=Dashboard(args.data,args.demo,retention_days=args.retention_days)
     threading.Thread(target=dashboard.run,daemon=True).start()
     dist=Path(__file__).resolve().parents[2]/'dist'
     print(f'Dashboard: http://{args.bind}:{args.port}',flush=True)

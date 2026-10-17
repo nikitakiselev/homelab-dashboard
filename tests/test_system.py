@@ -62,29 +62,32 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(restarted.hosts(),[])
         self.assertEqual(restarted.chart(hid,1),[])
 
-    def test_builtin_collector_is_local_and_not_removable(self):
-        with patch('homelab.server.app.platform.system',return_value='Linux'),patch('homelab.server.app.create_collector') as collector:
-            collector.return_value.latest=self.metrics
-            collector.return_value.error=None
-            dashboard=Dashboard(Path(self.tmp.name)/'self.sqlite',monitor_self=True)
-            local=dashboard.public_hosts()[0]
-            self.assertTrue(local['local'])
-            self.assertEqual(local['id'],'local')
-            self.assertIsNone(local['port'])
-            self.assertTrue(local['online'])
-            collector.return_value.start.assert_called_once()
-            with self.assertRaises(ValueError): dashboard.delete('local')
-            dashboard.close()
-            collector.return_value.stop.assert_called_once()
+    def test_dashboard_does_not_add_implicit_local_host(self):
+        self.assertEqual(self.dashboard.public_hosts(),[])
+        with patch.object(self.dashboard,'poll'):
+            hid=self.add()['id']
+        host=self.dashboard.public_hosts()[0]
+        self.assertEqual(host['id'],hid)
+        self.assertEqual(host['ip'],'127.0.0.1')
+        self.assertEqual(host['port'],self.agent.server_port)
+        self.assertNotIn('local',host)
+        self.dashboard.delete(hid)
+        self.assertEqual(self.dashboard.public_hosts(),[])
 
-    def test_builtin_collector_prevents_duplicate_registration(self):
-        with patch('homelab.server.app.platform.system',return_value='Linux'),patch('homelab.server.app.create_collector') as collector:
-            collector.return_value.agent_id=self.metrics['agent_id']
-            dashboard=Dashboard(Path(self.tmp.name)/'self.sqlite',monitor_self=True)
-            with self.assertRaisesRegex(ValueError,'встроенным'):
-                dashboard.add({'ip':'127.0.0.1','port':self.agent.server_port,'token':TOKEN})
-            self.assertEqual(dashboard.hosts(),[])
-            dashboard.close()
+    def test_previous_builtin_history_is_preserved_without_collecting(self):
+        self.dashboard.history.sample('local',self.metrics)
+        self.dashboard.close()
+        restored=Dashboard(self.path)
+        self.assertEqual(restored.public_hosts(),[])
+        self.assertTrue(restored.chart('local',1))
+        self.assertTrue(restored.chart('local',90))
+
+    def test_dashboard_retention_is_independent(self):
+        dashboard=Dashboard(Path(self.tmp.name)/'short.sqlite',retention_days=1)
+        old={**self.metrics,'timestamp':time.time()-2*86400}
+        dashboard.history.sample('host',old)
+        self.assertEqual(dashboard.chart('host',7),[])
+        with self.assertRaises(ValueError):Dashboard(self.path,retention_days=0)
 
     def test_wrong_token_does_not_register(self):
         with self.assertRaises(HTTPError) as error: self.add('incorrect-but-long-enough-token')

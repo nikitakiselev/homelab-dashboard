@@ -49,7 +49,7 @@ def copy_release(source,dist,releases):
     releases.mkdir(parents=True,exist_ok=True)
     release=Path(tempfile.mkdtemp(prefix=time.strftime('%Y%m%d-%H%M%S-'),dir=releases))
     for folder in ('homelab','deploy'):
-        shutil.copytree(source/folder,release/folder,ignore=shutil.ignore_patterns('__pycache__','*.pyc'))
+        shutil.copytree(source/folder,release/folder,ignore=shutil.ignore_patterns('__pycache__','*.pyc','collectors'))
     shutil.copytree(dist,release/'dist')
     shutil.copy2(source/'README.md',release/'README.md')
     shutil.copy2(source/'requirements.txt',release/'requirements.txt')
@@ -109,16 +109,6 @@ def main():
     env_path.touch(mode=0o600,exist_ok=True)
     os.chmod(env_path,0o600)
     env_path.write_text(contents)
-    collector_config=config_dir/'collector.yaml'
-    if not collector_config.exists():
-        collector_config.write_text((source/'deploy/agent.example.yaml').read_text())
-        os.chown(collector_config,0,user.pw_gid)
-        os.chmod(collector_config,0o640)
-    # Validate the existing YAML before changing the active release.
-    import sys
-    sys.path.insert(0,str(source))
-    from homelab.shared.config import load_config
-    load_config(collector_config)
     data=Path('/var/lib/homelab')
     data.mkdir(parents=True,exist_ok=True,mode=0o700)
     os.chown(data,user.pw_uid,user.pw_gid)
@@ -144,7 +134,7 @@ def main():
         except ValueError:pass
     print('Login token: '+token)
     print('Keep this token private. It is also stored in /etc/homelab/dashboard.env.')
-    print('Collector config: /etc/homelab/collector.yaml')
+    print('Metrics: install homelab-agent separately on each monitored Linux host and add it in the dashboard.')
     print('Data: /var/lib/homelab/dashboard.sqlite')
     print('Restart: systemctl restart homelab-dashboard')
 

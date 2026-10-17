@@ -1,11 +1,8 @@
 from pathlib import Path
 from types import SimpleNamespace
-import subprocess
-import sys
 import tempfile
 import unittest
-from deploy.install_server import activate_release, environment
-from homelab import __version__
+from deploy.install_server import activate_release, environment, copy_release
 
 
 class InstallerTests(unittest.TestCase):
@@ -36,3 +33,17 @@ class InstallerTests(unittest.TestCase):
             activate_release(root/'current',new,unit,'unit','test-token',8080,runner=lambda *args,**kwargs:SimpleNamespace(returncode=1 if 'is-active' in args else 0),health_check=lambda *args:None)
             self.assertEqual((root/'current').resolve(),new.resolve())
             self.assertEqual(unit.read_text(),'unit')
+
+    def test_dashboard_release_excludes_legacy_collectors(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp);source=root/'source';dist=root/'dist'
+            (source/'homelab/server/collectors').mkdir(parents=True)
+            (source/'homelab/server/collectors/legacy.py').write_text('raise RuntimeError("old hardware collector")')
+            (source/'homelab/server/app.py').write_text('# dashboard')
+            (source/'deploy').mkdir()
+            (source/'README.md').write_text('dashboard')
+            (source/'requirements.txt').write_text('# standard library')
+            dist.mkdir();(dist/'index.html').write_text('<html></html>')
+            release=copy_release(source,dist,root/'releases')
+            self.assertTrue((release/'homelab/server/app.py').is_file())
+            self.assertFalse((release/'homelab/server/collectors').exists())

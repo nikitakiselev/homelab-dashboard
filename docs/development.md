@@ -24,7 +24,7 @@ go test -race ./...
 go build -o ../releases/homelab-agent ./cmd/homelab-agent
 ```
 
-В Linux дополнительно запускается `python3 tests/linux_smoke.py`: реальный сбор CPU/памяти, HTTP-агент, синхронизация, восстановление истории и встроенный сборщик. Тест не требует доступа к домашним серверам. SMART и GPU отдельно проверяются на физическом оборудовании; отсутствие соответствующего устройства в CI не доказывает его поддержку.
+В Linux дополнительно запускается `python3 tests/linux_smoke.py`: реальный сбор CPU/памяти, HTTP-агент, синхронизация, восстановление истории и независимый перезапуск дашборда. Тест не требует доступа к домашним серверам. SMART и GPU отдельно проверяются на физическом оборудовании; отсутствие соответствующего устройства в CI не доказывает его поддержку.
 
 Изменения UI форматируются через `npm run format`. Не включайте в коммиты env-файлы, базы метрик, сгенерированные архивы, `node_modules` и сведения о домашней инфраструктуре.
 
@@ -33,7 +33,6 @@ go build -o ../releases/homelab-agent ./cmd/homelab-agent
 ```text
 frontend/             React, Tailwind, shadcn/ui
 agent/                Go: Linux-агент, CLI, HTTP API и история
-homelab/server/collectors/ Встроенный сбор метрик центрального сервиса
 homelab/server/       Центральный API, опрос, синхронизация, архив агента
 homelab/shared/       SQLite, YAML и состав установочного пакета
 install.sh            Bootstrap для центрального сервиса или --agent
@@ -42,6 +41,6 @@ tests/                Модульные и интеграционные про�
 docs/                 Пользовательская и техническая документация
 ```
 
-Go-агент — отдельный модуль `agent/go.mod`. Сборка без CGo: `CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build ./cmd/homelab-agent` из `agent/`. Python-сборщики в `homelab/server/collectors/` обслуживают только встроенный сбор центрального сервиса; они не устанавливаются на машины агентов. Для Linux smoke-теста сначала соберите бинарник в `releases/homelab-agent_linux_amd64` либо задайте `HOMELAB_AGENT_BINARY`. GitHub Actions собирает обе архитектуры по тегу `agent-vX.Y.Z`, публикуя бинарники и SHA256SUMS в Releases.
+Go-агент — отдельный модуль `agent/go.mod`. Сборка без CGo: `CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build ./cmd/homelab-agent` из `agent/`. Сборщики оборудования находятся только в Go-агенте; дашборд использует Python standard library и только опрашивает API зарегистрированных агентов. Для Linux smoke-теста сначала соберите бинарник в `releases/homelab-agent_linux_amd64` либо задайте `HOMELAB_AGENT_BINARY`. GitHub Actions собирает обе архитектуры по тегу `agent-vX.Y.Z`, публикуя бинарники и SHA256SUMS в Releases.
 
 Интеграционная проверка bootstrap-установщика и границы её достоверности описаны в [installer-testing.md](installer-testing.md).

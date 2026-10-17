@@ -106,7 +106,7 @@ export function ServerPage({
                 {host.online ? "В сети" : "Недоступен"}
               </span>
               <span className="rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs text-muted-foreground">
-                Версия {host.local ? "сборщика" : "агента"}:{" "}
+                Версия агента:{" "}
                 <span className="font-mono font-medium text-foreground">
                   {m?.agent_version || "Неизвестна"}
                 </span>
@@ -115,8 +115,7 @@ export function ServerPage({
               {host.demo && <span className="text-xs text-blue-700">Демо</span>}
             </div>
             <p className="text-sm text-muted-foreground">
-              {host.local ? "Центральный сервер" : `${host.ip}:${host.port}`} ·{" "}
-              {m?.os || "ОС неизвестна"}
+              {`${host.ip}:${host.port}`} · {m?.os || "ОС неизвестна"}
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
               {m
@@ -125,7 +124,7 @@ export function ServerPage({
             </p>
           </div>
         </div>
-        {!host.demo && !host.local && (
+        {!host.demo && (
           <Button
             variant="ghost"
             size="sm"
