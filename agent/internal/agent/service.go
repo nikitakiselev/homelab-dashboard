@@ -15,7 +15,7 @@ import (
 	"time"
 )
 
-var Version = "0.2.1"
+var Version = "0.3.0"
 
 func Serve(c Config, token string) error {
 	collector, err := NewCollector(c, nil)

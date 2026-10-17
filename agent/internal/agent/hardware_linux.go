@@ -24,7 +24,12 @@ func command(ctx context.Context, args ...string) ([]byte, error) {
 	return out, err
 }
 func ReadDisks(ctx context.Context) ([]Disk, error) {
-	out, err := command(ctx, "lsblk", "-J", "-b", "-o", "NAME,TYPE,SIZE,MODEL,ROTA,TRAN,MOUNTPOINTS")
+	return readDisks(ctx, nil, command)
+}
+
+// Only kernel/udev metadata is read before the guarded SMART request.
+func readDisks(ctx context.Context, previous []Disk, run func(context.Context, ...string) ([]byte, error)) ([]Disk, error) {
+	out, err := run(ctx, "lsblk", "-J", "-b", "-o", "NAME,TYPE,SIZE,MODEL,SERIAL,REV,ROTA,TRAN,MOUNTPOINTS")
 	if err != nil {
 		return []Disk{}, fmt.Errorf("lsblk: %w", err)
 	}
@@ -32,6 +37,9 @@ func ReadDisks(ctx context.Context) ([]Disk, error) {
 		Name        string
 		Type        string
 		Size        json.RawMessage
+		Serial      string
+		Rev         string
+		Tran        string
 		Model       string
 		Rota        json.RawMessage
 		Mountpoints []*string
@@ -76,6 +84,30 @@ func ReadDisks(ctx context.Context) ([]Disk, error) {
 		} else if string(d.Rota) == "true" || string(d.Rota) == "1" || string(d.Rota) == "\"1\"" {
 			disk.Type = "HDD"
 		}
+		disk.Serial, disk.Firmware, disk.Interface = strings.TrimSpace(d.Serial), strings.TrimSpace(d.Rev), d.Tran
+		// Reuse samples only when the physical identity matches; never just /dev/sdX.
+		for _, old := range previous {
+			if disk.Serial != "" && old.Serial == disk.Serial && old.Model == disk.Model && old.Total == disk.Total {
+				disk = old
+				disk.Name, disk.Interface = d.Name, d.Tran
+				break
+			}
+		}
+		disk.PowerState, disk.SMARTState = "unknown", "unavailable"
+		// Avoid autodetection: USB bridges and unknown transports may spin up a disk.
+		args := diskSMARTArgs(disk.Name, d.Tran)
+		if args == nil {
+			disk.SMARTState = "skipped"
+		} else {
+			smart, _ := run(ctx, args...)
+			applySMART(&disk, smart)
+		}
+		// stat/statfs can trigger filesystem I/O. Skip them unless HDD is confirmed awake.
+		if disk.Type == "HDD" && disk.PowerState != "active" {
+			disks = append(disks, disk)
+			continue
+		}
+		disk.Volumes, disk.Used, disk.MountedTotal = []Volume{}, 0, 0
 		for mount := range mounts {
 			var st syscall.Stat_t
 			var fs syscall.Statfs_t
@@ -89,36 +121,85 @@ func ReadDisks(ctx context.Context) ([]Disk, error) {
 			disk.Used += used
 			disk.MountedTotal += total
 		}
-		smart, _ := command(ctx, "smartctl", "-a", "-j", "/dev/"+d.Name)
-		applySMART(&disk, smart)
+		disk.UsageUpdatedAt = ptr(float64(time.Now().Unix()))
 		disks = append(disks, disk)
 	}
 	return disks, nil
 }
+
+// Explicit types avoid potentially waking device autodetection. STATUS2 makes
+// unsupported ATA power checks fail closed (requires smartmontools >= 7.3).
+func diskSMARTArgs(name, transport string) []string {
+	if strings.HasPrefix(name, "nvme") {
+		return []string{"smartctl", "-a", "-j", "-d", "nvme", "/dev/" + name}
+	}
+	if transport == "sata" || transport == "ata" {
+		return []string{"smartctl", "-a", "-j", "-d", "ata", "-n", "standby,75,76", "/dev/" + name}
+	}
+	return nil
+}
+
 func applySMART(d *Disk, raw []byte) {
 	var s struct {
-		Status struct {
+		Smartctl struct {
+			ExitStatus int `json:"exit_status"`
+		} `json:"smartctl"`
+		PowerMode struct {
+			Name string `json:"name"`
+		} `json:"power_mode"`
+		Serial       string   `json:"serial_number"`
+		Firmware     string   `json:"firmware_version"`
+		RotationRate *float64 `json:"rotation_rate"`
+		PowerOn      struct {
+			Hours *float64 `json:"hours"`
+		} `json:"power_on_time"`
+		PowerCycles *float64 `json:"power_cycle_count"`
+		Status      struct {
 			Passed *bool `json:"passed"`
 		} `json:"smart_status"`
 		Temperature struct {
 			Current *float64 `json:"current"`
 		} `json:"temperature"`
 		NVMe struct {
-			Critical float64 `json:"critical_warning"`
-			Used     float64 `json:"percentage_used"`
+			Critical    float64  `json:"critical_warning"`
+			Used        *float64 `json:"percentage_used"`
+			Spare       *float64 `json:"available_spare"`
+			MediaErrors *float64 `json:"media_errors"`
 		} `json:"nvme_smart_health_information_log"`
 		ATA struct {
 			Table []struct {
 				ID  int `json:"id"`
 				Raw struct {
-					Value float64 `json:"value"`
+					Value *float64 `json:"value"`
 				} `json:"raw"`
 			} `json:"table"`
 		} `json:"ata_smart_attributes"`
 	}
+	d.PowerState, d.SMARTState = "unknown", "unavailable"
 	if json.Unmarshal(raw, &s) != nil {
 		return
 	}
+	if s.Smartctl.ExitStatus == 75 {
+		d.PowerState, d.SMARTState = "standby", "sleeping"
+		if strings.EqualFold(s.PowerMode.Name, "SLEEP") {
+			d.PowerState = "sleep"
+		}
+		return
+	}
+	if s.Smartctl.ExitStatus == 76 {
+		d.SMARTState = "unsupported"
+		return
+	}
+	// Bits 0..1 indicate CLI/open failures; bit 2 can accompany useful SMART data.
+	if s.Smartctl.ExitStatus&3 != 0 {
+		return
+	}
+	if s.Status.Passed == nil && s.Temperature.Current == nil && s.PowerOn.Hours == nil && len(s.ATA.Table) == 0 && s.NVMe.Used == nil && s.NVMe.Critical == 0 {
+		return
+	}
+	d.PowerState, d.SMARTState = "active", "fresh"
+	d.SMARTUpdatedAt = ptr(float64(time.Now().Unix()))
+	d.Health, d.Warning = "unknown", nil
 	if s.Status.Passed != nil {
 		if *s.Status.Passed {
 			d.Health = "healthy"
@@ -126,7 +207,16 @@ func applySMART(d *Disk, raw []byte) {
 			d.Health = "failed"
 		}
 	}
-	d.Temperature = s.Temperature.Current
+	if s.Serial != "" {
+		d.Serial = s.Serial
+	}
+	if s.Firmware != "" {
+		d.Firmware = s.Firmware
+	}
+	d.RotationRate, d.Temperature = s.RotationRate, s.Temperature.Current
+	d.PowerOnHours, d.PowerCycles = s.PowerOn.Hours, s.PowerCycles
+	d.PercentageUsed, d.AvailableSpare, d.MediaErrors = s.NVMe.Used, s.NVMe.Spare, s.NVMe.MediaErrors
+	d.ReallocatedSectors, d.PendingSectors, d.UncorrectableSectors = nil, nil, nil
 	warn := func(text string) {
 		if d.Health != "failed" {
 			d.Health = "warning"
@@ -136,11 +226,19 @@ func applySMART(d *Disk, raw []byte) {
 	if s.NVMe.Critical > 0 {
 		warn("Предупреждение NVMe")
 	}
-	if s.NVMe.Used >= 100 {
+	if s.NVMe.Used != nil && *s.NVMe.Used >= 100 {
 		warn("Ресурс записи исчерпан")
 	}
 	for _, a := range s.ATA.Table {
-		if (a.ID == 5 || a.ID == 197 || a.ID == 198) && a.Raw.Value > 0 {
+		switch a.ID {
+		case 5:
+			d.ReallocatedSectors = a.Raw.Value
+		case 197:
+			d.PendingSectors = a.Raw.Value
+		case 198:
+			d.UncorrectableSectors = a.Raw.Value
+		}
+		if (a.ID == 5 || a.ID == 197 || a.ID == 198) && a.Raw.Value != nil && *a.Raw.Value > 0 {
 			warn("Проверьте повреждённые или переназначенные секторы")
 		}
 	}

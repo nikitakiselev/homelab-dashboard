@@ -869,7 +869,7 @@ function App({ view }: { view: View }) {
                                 {h.metrics?.disks.map((d) => (
                                   <span
                                     key={d.name}
-                                    title={`${d.name}: ${healthText(d.health)}`}
+                                    title={`${d.name}: ${healthText(d.health)}${d.smart_state ? ` · ${diskPowerText(d)}${d.smart_state !== "fresh" && d.smart_updated_at ? " · SMART ранее" : ""}` : ""}`}
                                     className={cn(
                                       "h-1.5 w-4 rounded-full",
                                       d.health === "healthy"
@@ -1246,7 +1246,9 @@ function ServerCard({
                       : "bg-[#b5c4d5]",
                   )}
                   style={{
-                    width: Math.min(100, (d.used / d.total) * 100) + "%",
+                    width:
+                      (d.total ? Math.min(100, (d.used / d.total) * 100) : 0) +
+                      "%",
                   }}
                 />
               </div>
@@ -1336,6 +1338,76 @@ function healthText(h: string) {
         ? "Критическое"
         : "SMART недоступен";
 }
+function diskPowerText(d: Disk) {
+  if (d.power_state === "standby" || d.power_state === "sleep") return "Спит";
+  if (d.power_state === "active") return "Активен";
+  return "Режим неизвестен";
+}
+function diskSampleTime(value?: number | null) {
+  return value == null
+    ? "ещё не получены"
+    : new Date(value * 1000).toLocaleString("ru-RU");
+}
+function DiskDetails({ disk: d }: { disk: Disk }) {
+  const number = (value?: number | null, suffix = "") =>
+    value == null ? "—" : value.toLocaleString("ru-RU") + suffix;
+  const rows = [
+    ["Серийный номер", d.serial || "—"],
+    ["Прошивка", d.firmware || "—"],
+    ["Интерфейс", d.interface?.toUpperCase() || "—"],
+    [
+      "Скорость вращения",
+      d.type === "HDD" ? number(d.rotation_rate, " об/мин") : "Без вращения",
+    ],
+    ["Наработка", number(d.power_on_hours, " ч")],
+    ["Включения", number(d.power_cycles)],
+    ...(d.type === "NVMe"
+      ? [
+          ["Израсходованный ресурс", number(d.percentage_used, "%")],
+          ["Доступный резерв", number(d.available_spare, "%")],
+          ["Ошибки носителя", number(d.media_errors)],
+        ]
+      : [
+          ["Переназначенные секторы", number(d.reallocated_sectors)],
+          ["Ожидающие секторы", number(d.pending_sectors)],
+          ["Неисправимые секторы", number(d.uncorrectable_sectors)],
+        ]),
+  ];
+  return (
+    <>
+      {d.smart_state && (
+        <div className="mb-4 space-y-1 text-[12px]">
+          <p>
+            {d.smart_state === "sleeping"
+              ? "Диск спит. SMART и заполнение томов не опрашиваются; показаны последние сохранённые данные."
+              : d.smart_state === "skipped"
+                ? "Опрос SMART пропущен: для этого подключения безопасная проверка сна не настроена."
+                : d.smart_state === "unsupported"
+                  ? "Устройство не поддерживает безопасную проверку сна. SMART не опрашивается."
+                  : d.smart_state === "unavailable"
+                    ? "SMART недоступен. Проверьте права и наличие smartmontools 7.3 или новее. Повторный опрос без защиты сна не выполняется."
+                    : "SMART получен при последнем опросе."}
+          </p>
+          <p>Данные SMART: {diskSampleTime(d.smart_updated_at)}</p>
+          <p>Заполнение томов: {diskSampleTime(d.usage_updated_at)}</p>
+        </div>
+      )}
+      <dl className="mb-4 grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2">
+        {rows.map(([label, value]) => (
+          <div
+            key={label}
+            className="flex flex-wrap justify-between gap-x-3 gap-y-1"
+          >
+            <dt className="text-[12px]">{label}</dt>
+            <dd className="break-all text-[12px] font-medium text-foreground">
+              {value}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </>
+  );
+}
 function DiskList({ disks }: { disks: Disk[] }) {
   const [open, setOpen] = useState<string | null>(null);
   return (
@@ -1344,6 +1416,7 @@ function DiskList({ disks }: { disks: Disk[] }) {
         <div key={d.name}>
           <button
             onClick={() => setOpen(open === d.name ? null : d.name)}
+            aria-expanded={open === d.name}
             className="flex w-full flex-wrap items-center gap-3 py-4 text-left cursor-pointer"
           >
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-zinc-50 text-muted-foreground">
@@ -1353,20 +1426,38 @@ function DiskList({ disks }: { disks: Disk[] }) {
               <div className="text-sm font-medium">{d.model}</div>
               <div className="mt-1 text-[12px] text-muted-foreground">
                 /dev/{d.name} · {d.type} · {bytes(d.total)}
-                {d.temperature != null ? ` · ${d.temperature} °C` : ""}
+                {d.temperature != null
+                  ? ` · ${d.temperature} °C${d.smart_state && d.smart_state !== "fresh" ? " (ранее)" : ""}`
+                  : ""}
               </div>
             </div>
+            {d.smart_state && (
+              <span
+                className={cn(
+                  "rounded-full px-2 py-1 text-[12px]",
+                  d.smart_state === "sleeping"
+                    ? "bg-blue-50 text-blue-700"
+                    : "bg-zinc-100 text-muted-foreground",
+                )}
+              >
+                {diskPowerText(d)}
+              </span>
+            )}
             <div className="min-w-[120px] flex-1 sm:max-w-60">
               <div className="mb-1.5 text-[12px] text-muted-foreground">
                 {d.volumes.length
-                  ? `${bytes(d.used)} занято в томах`
-                  : "Нет смонтированных томов"}
+                  ? `${bytes(d.used)} занято в томах${d.smart_state && d.type === "HDD" && d.power_state !== "active" ? " (ранее)" : ""}`
+                  : d.smart_state && !d.usage_updated_at
+                    ? "Заполнение не опрашивалось"
+                    : "Нет смонтированных томов"}
               </div>
               <div className="h-1.5 overflow-hidden rounded-full bg-zinc-100">
                 <div
                   className="h-full rounded-full bg-blue-300"
                   style={{
-                    width: Math.min(100, (d.used / d.total) * 100) + "%",
+                    width:
+                      (d.total ? Math.min(100, (d.used / d.total) * 100) : 0) +
+                      "%",
                   }}
                 />
               </div>
@@ -1388,7 +1479,9 @@ function DiskList({ disks }: { disks: Disk[] }) {
               ) : (
                 <AlertTriangle size={11} />
               )}{" "}
-              {healthText(d.health)}
+              {d.smart_state && d.smart_state !== "fresh" && d.smart_updated_at
+                ? `${healthText(d.health)} · ранее`
+                : healthText(d.health)}
             </span>
             <ChevronDown
               size={14}
@@ -1401,7 +1494,8 @@ function DiskList({ disks }: { disks: Disk[] }) {
           {open === d.name && (
             <div className="mb-4 rounded-xl bg-zinc-50 p-4 text-sm text-muted-foreground appear">
               {d.warning && <p className="mb-3 text-orange-700">{d.warning}</p>}
-              {d.health === "unknown" && (
+              <DiskDetails disk={d} />
+              {d.health === "unknown" && !d.smart_state && (
                 <p className="mb-3">
                   Установите smartmontools и предоставьте агенту права чтения
                   SMART.

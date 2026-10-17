@@ -17,6 +17,23 @@ export function percent(n: number | null | undefined) {
   return n == null ? "—" : Math.round(n) + "%";
 }
 export type Disk = {
+  serial?: string;
+  firmware?: string;
+  interface?: string;
+  rotation_rate?: number | null;
+  power_state?: string;
+  smart_state?: string;
+  smart_updated_at?: number | null;
+  usage_updated_at?: number | null;
+  power_on_hours?: number | null;
+  power_cycles?: number | null;
+  reallocated_sectors?: number | null;
+  pending_sectors?: number | null;
+  uncorrectable_sectors?: number | null;
+  percentage_used?: number | null;
+  available_spare?: number | null;
+  media_errors?: number | null;
+
   name: string;
   model: string;
   type: string;

@@ -61,7 +61,10 @@ func (c *Collector) Run(ctx context.Context) {
 			defer workers.Done()
 			for {
 				if kind == "disks" {
-					v, err := ReadDisks(ctx)
+					c.mu.RLock()
+					previous := c.disks
+					c.mu.RUnlock()
+					v, err := readDisks(ctx, previous, command)
 					c.mu.Lock()
 					c.disks = v
 					if err != nil {

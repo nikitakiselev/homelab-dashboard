@@ -30,6 +30,23 @@ type Volume struct {
 	Used  uint64 `json:"used"`
 }
 type Disk struct {
+	Serial               string   `json:"serial,omitempty"`
+	Firmware             string   `json:"firmware,omitempty"`
+	Interface            string   `json:"interface,omitempty"`
+	RotationRate         *float64 `json:"rotation_rate,omitempty"`
+	PowerState           string   `json:"power_state,omitempty"`
+	SMARTState           string   `json:"smart_state,omitempty"`
+	SMARTUpdatedAt       *float64 `json:"smart_updated_at,omitempty"`
+	UsageUpdatedAt       *float64 `json:"usage_updated_at,omitempty"`
+	PowerOnHours         *float64 `json:"power_on_hours,omitempty"`
+	PowerCycles          *float64 `json:"power_cycles,omitempty"`
+	ReallocatedSectors   *float64 `json:"reallocated_sectors,omitempty"`
+	PendingSectors       *float64 `json:"pending_sectors,omitempty"`
+	UncorrectableSectors *float64 `json:"uncorrectable_sectors,omitempty"`
+	PercentageUsed       *float64 `json:"percentage_used,omitempty"`
+	AvailableSpare       *float64 `json:"available_spare,omitempty"`
+	MediaErrors          *float64 `json:"media_errors,omitempty"`
+
 	Name         string   `json:"name"`
 	Model        string   `json:"model"`
 	Type         string   `json:"type"`

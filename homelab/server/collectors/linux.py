@@ -27,17 +27,90 @@ def command(args):
         return ''
 
 
-def disks():
-    raw = command(['lsblk', '-J', '-b', '-o', 'NAME,TYPE,SIZE,MODEL,ROTA,TRAN,MOUNTPOINTS'])
+def disk_smart_args(name, transport):
+    # Never autodetect USB/RAID bridges: identification itself can spin up HDDs.
+    if name.startswith('nvme'):
+        return ['smartctl', '-a', '-j', '-d', 'nvme', '/dev/'+name]
+    if transport in ('sata', 'ata'):
+        # STATUS2 fails closed if CHECK POWER MODE is unsupported (smartctl 7.3+).
+        return ['smartctl', '-a', '-j', '-d', 'ata', '-n', 'standby,75,76', '/dev/'+name]
+    return None
+
+
+def apply_smart(disk, smart):
+    status = smart.get('smartctl', {}).get('exit_status', 0)
+    if status == 75:
+        disk['power_state'] = 'sleep' if smart.get('power_mode', {}).get('name', '').upper() == 'SLEEP' else 'standby'
+        disk['smart_state'] = 'sleeping'
+        return
+    if status == 76:
+        disk['smart_state'] = 'unsupported'
+        return
+    if status & 3:
+        return
+    nvme = smart.get('nvme_smart_health_information_log', {})
+    attributes = smart.get('ata_smart_attributes', {}).get('table', [])
+    passed = smart.get('smart_status', {}).get('passed')
+    temperature = smart.get('temperature', {}).get('current')
+    hours = smart.get('power_on_time', {}).get('hours')
+    if passed is None and temperature is None and hours is None and not attributes and not nvme:
+        return
+    disk.update(power_state='active', smart_state='fresh', smart_updated_at=time.time(),
+                health='healthy' if passed is True else 'failed' if passed is False else 'unknown',
+                temperature=temperature, warning=None, rotation_rate=smart.get('rotation_rate'),
+                power_on_hours=hours, power_cycles=smart.get('power_cycle_count'),
+                percentage_used=nvme.get('percentage_used'), available_spare=nvme.get('available_spare'),
+                media_errors=nvme.get('media_errors'), reallocated_sectors=None,
+                pending_sectors=None, uncorrectable_sectors=None)
+    disk['serial'] = smart.get('serial_number') or disk['serial']
+    disk['firmware'] = smart.get('firmware_version') or disk['firmware']
+    def warn(message):
+        if disk['health'] != 'failed': disk['health'] = 'warning'
+        disk['warning'] = message
+    if nvme.get('critical_warning', 0): warn('Предупреждение NVMe')
+    if nvme.get('percentage_used', 0) >= 100: warn('Ресурс записи исчерпан')
+    for attr in attributes:
+        key = {5:'reallocated_sectors', 197:'pending_sectors', 198:'uncorrectable_sectors'}.get(attr.get('id'))
+        if key:
+            value = attr.get('raw', {}).get('value')
+            disk[key] = value
+            if value is not None and value > 0:
+                warn('Проверьте повреждённые или переназначенные секторы')
+
+
+def disks(previous=None):
+    raw = command(['lsblk', '-J', '-b', '-o', 'NAME,TYPE,SIZE,MODEL,SERIAL,REV,ROTA,TRAN,MOUNTPOINTS'])
     try:
         devices = json.loads(raw)['blockdevices']
     except (ValueError, KeyError):
         return []
     result = []
-    # Filesystem usage is assigned once; mounted filesystems may span multiple disks.
     seen_fs = set()
     for d in devices:
         if d['type'] != 'disk' or d['name'].startswith(('loop', 'ram', 'zram')):
+            continue
+        disk = {'name':d['name'], 'model':(d.get('model') or d['name']).strip(),
+                'serial':(d.get('serial') or '').strip(), 'firmware':(d.get('rev') or '').strip(),
+                'interface':d.get('tran') or '',
+                'type':'NVMe' if d['name'].startswith('nvme') else 'HDD' if d.get('rota') in (True, 1, '1') else 'SSD',
+                'total':int(d.get('size') or 0), 'used':0, 'mounted_total':0, 'volumes':[],
+                'health':'unknown', 'temperature':None, 'warning':None}
+        for old in previous or []:
+            if disk['serial'] and old.get('serial') == disk['serial'] and old['model'] == disk['model'] and old['total'] == disk['total']:
+                disk = {**old, 'name':d['name'], 'interface':disk['interface']}
+                break
+        disk.update(power_state='unknown', smart_state='unavailable')
+        args = disk_smart_args(disk['name'], disk['interface'])
+        if args is None:
+            disk['smart_state'] = 'skipped'
+        elif shutil.which('smartctl'):
+            try:
+                apply_smart(disk, json.loads(command(args)))
+            except (ValueError, TypeError, AttributeError):
+                pass
+        # stat/statvfs can cause filesystem I/O. Do not touch sleeping/unknown HDDs.
+        if disk['type'] == 'HDD' and disk['power_state'] != 'active':
+            result.append(disk)
             continue
         mounts = []
         def walk(node):
@@ -51,36 +124,14 @@ def disks():
                 fs_id = os.stat(mount).st_dev
                 if fs_id in seen_fs:
                     continue
-                seen_fs.add(fs_id)
                 usage = shutil.disk_usage(mount)
+                seen_fs.add(fs_id)
                 volumes.append({'mount':mount, 'total':usage.total, 'used':usage.used})
             except OSError:
                 pass
-        health, temperature, warning = 'unknown', None, None
-        if shutil.which('smartctl'):
-            try:
-                smart = json.loads(command(['smartctl', '-a', '-j', '/dev/'+d['name']]))
-                passed = smart.get('smart_status', {}).get('passed')
-                health = 'healthy' if passed is True else 'failed' if passed is False else 'unknown'
-                temperature = smart.get('temperature', {}).get('current')
-                nvme = smart.get('nvme_smart_health_information_log', {})
-                if nvme.get('critical_warning', 0):
-                    health = 'warning' if health != 'failed' else health
-                    warning = 'Предупреждение NVMe'
-                if nvme.get('percentage_used', 0) >= 100:
-                    health = 'warning' if health != 'failed' else health
-                    warning = 'Ресурс записи исчерпан'
-                for attr in smart.get('ata_smart_attributes', {}).get('table', []):
-                    if attr.get('id') in (5,197,198) and attr.get('raw', {}).get('value',0)>0:
-                        if health != 'failed': health = 'warning'
-                        warning = 'Проверьте повреждённые или переназначенные секторы'
-            except (ValueError, TypeError):
-                pass
-        result.append({'name':d['name'], 'model':(d.get('model') or d['name']).strip(),
-            'type':'NVMe' if d['name'].startswith('nvme') else 'HDD' if d.get('rota') else 'SSD',
-            'total':int(d.get('size') or 0), 'used':sum(v['used'] for v in volumes),
-            'mounted_total':sum(v['total'] for v in volumes), 'volumes':volumes,
-            'health':health, 'temperature':temperature, 'warning':warning})
+        disk.update(volumes=volumes, used=sum(v['used'] for v in volumes),
+                    mounted_total=sum(v['total'] for v in volumes), usage_updated_at=time.time())
+        result.append(disk)
     return result
 
 
@@ -214,7 +265,7 @@ class Collector(SamplingRuntime):
         self.error = None
 
     def read_disks(self):
-        return disks()
+        return disks(self.disk_cache)
 
     def read_gpus(self):
         return gpus()
