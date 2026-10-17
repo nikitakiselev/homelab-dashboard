@@ -217,6 +217,12 @@ function App({ view }: { view: View }) {
   const rx = metrics.reduce((s, m) => s + m.network.rx, 0),
     tx = metrics.reduce((s, m) => s + m.network.tx, 0),
     warnings = allDisks.filter((d) => ["warning", "failed"].includes(d.health));
+  const smartUnchecked = allDisks.some(
+    (d) =>
+      d.health === "unknown" || (d.smart_state && d.smart_state !== "fresh"),
+  );
+  const smartPassive =
+    allDisks.length > 0 && allDisks.every((d) => d.smart_state === "passive");
   return (
     <div className="min-h-screen lg:flex">
       <aside className="fixed inset-y-0 left-0 z-20 hidden w-[218px] flex-col border-r border-black/[0.055] bg-white px-4 py-7 lg:flex">
@@ -756,11 +762,15 @@ function App({ view }: { view: View }) {
                               "flex h-9 w-9 shrink-0 items-center justify-center rounded-full",
                               warnings.length
                                 ? "bg-orange-100/60 text-orange-700"
-                                : "bg-emerald-100/60 text-emerald-700",
+                                : smartUnchecked
+                                  ? "bg-zinc-200/60 text-muted-foreground"
+                                  : "bg-emerald-100/60 text-emerald-700",
                             )}
                           >
                             {warnings.length ? (
                               <AlertTriangle size={18} />
+                            ) : smartUnchecked ? (
+                              <CircleHelp size={18} />
                             ) : (
                               <Check size={18} />
                             )}
@@ -769,16 +779,20 @@ function App({ view }: { view: View }) {
                             <div className="text-sm font-medium">
                               {warnings.length
                                 ? "Предупреждения SMART"
-                                : allDisks.some((d) => d.health === "unknown")
-                                  ? "SMART: неполные данные"
-                                  : "SMART: ошибок не обнаружено"}
+                                : smartPassive
+                                  ? "SMART: опрос отключён"
+                                  : smartUnchecked
+                                    ? "SMART: неполные данные"
+                                    : "SMART: ошибок не обнаружено"}
                             </div>
                             <div className="mt-1 text-[12px] text-muted-foreground">
                               {warnings.length
                                 ? `${warnings.length} из ${allDisks.length} требуют проверки`
-                                : allDisks.some((d) => d.health === "unknown")
-                                  ? "Для части дисков SMART недоступен"
-                                  : "Предупреждений SMART нет"}
+                                : smartPassive
+                                  ? "Пассивный режим: дисковые команды не отправляются"
+                                  : smartUnchecked
+                                    ? "Для части дисков нет свежих данных о состоянии"
+                                    : "Предупреждений SMART нет"}
                             </div>
                           </div>
                         </div>
@@ -803,7 +817,7 @@ function App({ view }: { view: View }) {
                                 {h.metrics?.disks.map((d) => (
                                   <span
                                     key={d.name}
-                                    title={`${d.name}: ${healthText(d.health)}${d.smart_state ? ` · ${diskPowerText(d)}${d.smart_state !== "fresh" && d.smart_updated_at ? " · SMART ранее" : ""}` : ""}`}
+                                    title={`${d.name}: ${healthText(d)}${d.smart_state ? ` · ${diskPowerText(d)}${d.smart_state !== "fresh" && d.smart_updated_at ? " · SMART ранее" : ""}` : ""}`}
                                     className={cn(
                                       "h-1.5 w-4 rounded-full",
                                       d.health === "healthy"
@@ -826,7 +840,8 @@ function App({ view }: { view: View }) {
                           ))}
                         </div>
                         <div className="mt-5 border-t border-black/5 pt-3 text-[12px] leading-relaxed text-muted-foreground">
-                          SMART проверяется каждую минуту.
+                          Частота SMART зависит от политики агента; HDD могут
+                          передавать сохранённые данные.
                           <br />
                           Подробности доступны в разделе накопителей.
                         </div>
@@ -1200,24 +1215,67 @@ function Meter({
     </div>
   );
 }
-function healthText(h: string) {
-  return h === "healthy"
-    ? "В норме"
-    : h === "warning"
-      ? "Проверить"
-      : h === "failed"
-        ? "Критическое"
-        : "SMART недоступен";
+function healthText(d: Disk) {
+  if (d.health === "healthy") return "В норме";
+  if (d.health === "warning") return "Проверить";
+  if (d.health === "failed") return "Критическое";
+  if (d.smart_state === "passive" || d.smart_state === "skipped")
+    return "SMART не опрашивается";
+  if (d.smart_state === "sleeping") return "SMART: диск спал при проверке";
+  if (d.smart_state === "unsupported") return "Опрос SMART пропущен";
+  if (d.smart_state === "unavailable") return "SMART недоступен";
+  if (d.smart_state === "waiting_activity") return "SMART: ожидание активности";
+  if (d.smart_state === "cached") return "SMART: сохранённые данные";
+  if (d.smart_state === "cooldown") return "SMART: повтор отложен";
+  if (d.smart_state === "power_unknown")
+    return "SMART: режим питания неизвестен";
+  return "Нет данных о состоянии";
 }
 function diskPowerText(d: Disk) {
-  if (d.power_state === "standby" || d.power_state === "sleep") return "Спит";
-  if (d.power_state === "active") return "Активен";
+  if (d.power_state === "standby" || d.power_state === "sleep")
+    return "Спал при опросе";
+  if (d.power_state === "active") return "Активен при опросе";
   return "Режим неизвестен";
 }
 function diskSampleTime(value?: number | null) {
-  return value == null
-    ? "ещё не получены"
-    : new Date(value * 1000).toLocaleString("ru-RU");
+  if (value == null) return "ещё не получены";
+  const minutes = Math.floor((Date.now() / 1000 - value) / 60);
+  const age =
+    minutes < 0
+      ? "дата в будущем"
+      : minutes < 1
+        ? "только что"
+        : minutes < 60
+          ? `${minutes} мин. назад`
+          : minutes < 1440
+            ? `${Math.floor(minutes / 60)} ч. назад`
+            : `${Math.floor(minutes / 1440)} дн. назад`;
+  return `${new Date(value * 1000).toLocaleString("ru-RU")} (${age})`;
+}
+function smartPolicyText(state: string) {
+  const messages: Record<string, string> = {
+    passive:
+      "Автоматический ATA SMART-опрос отключён или диск не входит в разрешённый список. Показаны метаданные и сохранённые показатели.",
+    sleeping:
+      "При последней проверке диск находился в режиме сна. SMART пропущен, следующая попытка отложена. Текущее питание между проверками неизвестно.",
+    skipped:
+      "Опрос SMART пропущен: политика для этого подключения не настроена.",
+    unsupported:
+      "Проверка питания не поддерживается. SMART пропущен, следующая попытка отложена.",
+    unavailable:
+      "SMART не удалось прочитать. Показан прежний снимок, если он есть. Проверьте диагностику агента.",
+    waiting_activity:
+      "SMART ожидает обычного чтения или записи на диск. Принудительного пробуждения по расписанию нет.",
+    cached:
+      "Показан сохранённый снимок SMART. ATA-опрос разрешён не чаще раза в сутки и только при наблюдаемой дисковой активности.",
+    cooldown:
+      "Предыдущая попытка прервана или ещё не завершена. Ограничение частоты сохраняется после перезапуска агента.",
+    power_unknown:
+      "Режим питания не удалось определить. SMART пропущен, следующая попытка отложена.",
+    fresh:
+      "Показан последний полученный снимок SMART; время измерения указано ниже.",
+  };
+  return messages[state] || "Состояние SMART передано агентом.";
 }
 function DiskDetails({ disk: d }: { disk: Disk }) {
   const number = (value?: number | null, suffix = "") =>
@@ -1232,6 +1290,8 @@ function DiskDetails({ disk: d }: { disk: Disk }) {
     ],
     ["Наработка", number(d.power_on_hours, " ч")],
     ["Включения", number(d.power_cycles)],
+    ["Запуски и остановки шпинделя", number(d.start_stop_count)],
+    ["Циклы загрузки/выгрузки головок", number(d.load_cycle_count)],
     ...(d.type === "NVMe"
       ? [
           ["Израсходованный ресурс", number(d.percentage_used, "%")],
@@ -1248,20 +1308,11 @@ function DiskDetails({ disk: d }: { disk: Disk }) {
     <>
       {d.smart_state && (
         <div className="mb-4 space-y-1 text-[12px]">
-          <p>
-            {d.smart_state === "passive"
-              ? "Автоматический SMART-опрос отключён: команды могут мешать таймеру сна и вызывать парковку головок. Показаны только метаданные и сохранённые показатели."
-              : d.smart_state === "sleeping"
-                ? "Диск спит. SMART и заполнение томов не опрашиваются; показаны последние сохранённые данные."
-                : d.smart_state === "skipped"
-                  ? "Опрос SMART пропущен: для этого подключения безопасная проверка сна не настроена."
-                  : d.smart_state === "unsupported"
-                    ? "Устройство не поддерживает безопасную проверку сна. SMART не опрашивается."
-                    : d.smart_state === "unavailable"
-                      ? "SMART недоступен. Проверьте права и наличие smartmontools 7.3 или новее. Повторный опрос без защиты сна не выполняется."
-                      : "SMART получен при последнем опросе."}
-          </p>
+          <p>{smartPolicyText(d.smart_state)}</p>
           <p>Данные SMART: {diskSampleTime(d.smart_updated_at)}</p>
+          {d.smart_attempt_at != null && (
+            <p>Последняя попытка: {diskSampleTime(d.smart_attempt_at)}</p>
+          )}
           <p>Заполнение томов: {diskSampleTime(d.usage_updated_at)}</p>
         </div>
       )}
@@ -1353,8 +1404,8 @@ function DiskList({ disks }: { disks: Disk[] }) {
                 <AlertTriangle size={11} />
               )}{" "}
               {d.smart_state && d.smart_state !== "fresh" && d.smart_updated_at
-                ? `${healthText(d.health)} · ранее`
-                : healthText(d.health)}
+                ? `${healthText(d)} · ранее`
+                : healthText(d)}
             </span>
             <ChevronDown
               size={14}
@@ -1370,8 +1421,7 @@ function DiskList({ disks }: { disks: Disk[] }) {
               <DiskDetails disk={d} />
               {d.health === "unknown" && !d.smart_state && (
                 <p className="mb-3">
-                  Установите smartmontools и предоставьте агенту права чтения
-                  SMART.
+                  Агент не передал данные SMART. Состояние диска неизвестно.
                 </p>
               )}
               {d.volumes.map((v) => (

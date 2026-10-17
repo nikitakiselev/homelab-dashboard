@@ -27,6 +27,9 @@ export type Disk = {
   usage_updated_at?: number | null;
   power_on_hours?: number | null;
   power_cycles?: number | null;
+  load_cycle_count?: number | null;
+  start_stop_count?: number | null;
+  smart_attempt_at?: number | null;
   reallocated_sectors?: number | null;
   pending_sectors?: number | null;
   uncorrectable_sectors?: number | null;

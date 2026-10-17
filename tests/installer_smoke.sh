@@ -34,6 +34,8 @@ if command -v smartctl >/dev/null 2>&1; then echo 'FAIL: dashboard installed SMA
 if command -v homelab-agent >/dev/null 2>&1; then echo 'FAIL: dashboard installed an agent implicitly'; exit 1; fi
 printf 'PASS: server update preserved token, YAML and history; systemd unit validated\n'
 HOMELAB_AGENT_BINARY=/repo/releases/homelab-agent_linux_amd64 sh /repo/install.sh --source /repo --agent >/tmp/test-agent-install.log 2>&1
+command -v hdparm >/dev/null
+homelab-agent doctor | sed -n '/ATA SMART:/p' | grep -q 'enabled=false'
 /usr/bin/python3 - <<'PY'
 from pathlib import Path
 import json,sqlite3,time

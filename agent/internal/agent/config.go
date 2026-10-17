@@ -15,6 +15,11 @@ type ProbeConfig struct {
 	Enabled  bool    `yaml:"enabled"`
 	Interval float64 `yaml:"interval_seconds"`
 }
+type SMARTConfig struct {
+	Enabled  bool     `yaml:"enabled"`
+	Interval float64  `yaml:"interval_seconds"`
+	Serials  []string `yaml:"serials"`
+}
 type Config struct {
 	Server struct {
 		Bind string `yaml:"bind"`
@@ -23,6 +28,7 @@ type Config struct {
 	Collection struct {
 		Interval float64     `yaml:"interval_seconds"`
 		Disks    ProbeConfig `yaml:"disks"`
+		SMART    SMARTConfig `yaml:"smart"`
 		GPU      ProbeConfig `yaml:"gpu"`
 	} `yaml:"collection"`
 	Network struct {
@@ -40,6 +46,7 @@ func DefaultConfig() Config {
 	c.Server.Port = 9108
 	c.Collection.Interval = 5
 	c.Collection.Disks = ProbeConfig{true, 60}
+	c.Collection.SMART = SMARTConfig{Interval: 86400, Serials: []string{}}
 	c.Collection.GPU = ProbeConfig{true, 5}
 	c.Network.Interfaces = []string{}
 	c.History.Days = 90
@@ -106,7 +113,7 @@ func validateNode(n *yaml.Node, path string) error {
 				tag = "!!str"
 			case "server.port", "history.retention_days":
 				tag = "!!int"
-			case "collection.disks.enabled", "collection.gpu.enabled":
+			case "collection.disks.enabled", "collection.gpu.enabled", "collection.smart.enabled":
 				tag = "!!bool"
 			}
 			if tag != "" && v.Tag != tag {
@@ -115,16 +122,16 @@ func validateNode(n *yaml.Node, path string) error {
 			if strings.HasSuffix(next, "interval_seconds") && v.Tag != "!!int" && v.Tag != "!!float" {
 				return fmt.Errorf("%s: expected number", next)
 			}
-			if (next == "server" || next == "collection" || next == "collection.disks" || next == "collection.gpu" || next == "network" || next == "history") && v.Kind != yaml.MappingNode {
+			if (next == "server" || next == "collection" || next == "collection.disks" || next == "collection.smart" || next == "collection.gpu" || next == "network" || next == "history") && v.Kind != yaml.MappingNode {
 				return fmt.Errorf("%s: expected mapping", next)
 			}
-			if next == "network.interfaces" {
+			if next == "network.interfaces" || next == "collection.smart.serials" {
 				if v.Kind != yaml.SequenceNode {
-					return fmt.Errorf("interfaces: expected list")
+					return fmt.Errorf("%s: expected list", next)
 				}
 				for _, s := range v.Content {
 					if s.Tag != "!!str" {
-						return fmt.Errorf("interfaces: expected strings")
+						return fmt.Errorf("%s: expected strings", next)
 					}
 				}
 			}
@@ -152,6 +159,23 @@ func (c Config) Validate() error {
 		if math.IsNaN(v.v) || math.IsInf(v.v, 0) || v.v < 1 || v.v > v.max {
 			return fmt.Errorf("%s must be between 1 and %g", v.n, v.max)
 		}
+	}
+	smart := c.Collection.SMART
+	if math.IsNaN(smart.Interval) || math.IsInf(smart.Interval, 0) || smart.Interval < 86400 || smart.Interval > 90*86400 {
+		return fmt.Errorf("collection.smart.interval_seconds must be between 86400 and 7776000")
+	}
+	if smart.Enabled && (!c.Collection.Disks.Enabled || len(smart.Serials) == 0) {
+		return fmt.Errorf("SMART requires collection.disks.enabled and an explicit nonempty serials allowlist")
+	}
+	if smart.Enabled && c.Collection.Interval > 30 {
+		return fmt.Errorf("SMART requires collection.interval_seconds <= 30 for recent I/O observation")
+	}
+	seenSerials := map[string]bool{}
+	for _, serial := range smart.Serials {
+		if strings.TrimSpace(serial) != serial || serial == "" || strings.ContainsAny(serial, "\r\n\x00") || seenSerials[serial] {
+			return fmt.Errorf("invalid or duplicate SMART serial")
+		}
+		seenSerials[serial] = true
 	}
 	if c.History.Days < 1 || c.History.Days > 3650 || c.History.Path == "" {
 		return fmt.Errorf("invalid history settings")

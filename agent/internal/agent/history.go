@@ -25,7 +25,7 @@ func OpenHistory(path string, days int) (*History, error) {
 	}
 	db.SetMaxOpenConns(1)
 	_, err = db.Exec(`PRAGMA busy_timeout=15000; CREATE TABLE IF NOT EXISTS history (
- host TEXT, bucket INTEGER, cpu REAL, memory REAL, gpu REAL, rx REAL, tx REAL, rx_bytes REAL, tx_bytes REAL, samples INTEGER, PRIMARY KEY(host,bucket)); CREATE TABLE IF NOT EXISTS disk_history (host TEXT, bucket INTEGER, payload TEXT NOT NULL, PRIMARY KEY(host,bucket))`)
+ host TEXT, bucket INTEGER, cpu REAL, memory REAL, gpu REAL, rx REAL, tx REAL, rx_bytes REAL, tx_bytes REAL, samples INTEGER, PRIMARY KEY(host,bucket)); CREATE TABLE IF NOT EXISTS smart_cache (identity TEXT PRIMARY KEY, payload TEXT NOT NULL); CREATE TABLE IF NOT EXISTS disk_history (host TEXT, bucket INTEGER, payload TEXT NOT NULL, PRIMARY KEY(host,bucket))`)
 	if err != nil {
 		db.Close()
 		return nil, err

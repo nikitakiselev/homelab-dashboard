@@ -25,6 +25,7 @@ type Collector struct {
 	disks        []Disk
 	gpus         []GPU
 	diagnostics  map[string]string
+	recentDiskIO map[string]time.Time
 	previousDisk map[string]diskCounters
 	previousCPU  [2]float64
 	previousNet  map[string][2]float64
@@ -40,7 +41,7 @@ func NewCollector(c Config, h *History) (*Collector, error) {
 	if machine == "" {
 		machine = hostname
 	}
-	return &Collector{Config: c, History: h, ID: fmt.Sprintf("%x", sha256.Sum256([]byte(machine)))[:24], disks: []Disk{}, gpus: []GPU{}, diagnostics: map[string]string{}}, nil
+	return &Collector{Config: c, History: h, ID: fmt.Sprintf("%x", sha256.Sum256([]byte(machine)))[:24], disks: []Disk{}, gpus: []GPU{}, diagnostics: map[string]string{}, recentDiskIO: map[string]time.Time{}}, nil
 }
 func (c *Collector) Snapshot() *Metrics {
 	c.mu.RLock()
@@ -64,8 +65,15 @@ func (c *Collector) Run(ctx context.Context) {
 				if kind == "disks" {
 					c.mu.RLock()
 					previous := c.disks
+					activity := make(map[string]time.Time, len(c.recentDiskIO))
+					for name, at := range c.recentDiskIO {
+						activity[name] = at
+					}
 					c.mu.RUnlock()
 					v, err := readDisks(ctx, previous, command)
+					if err == nil {
+						err = collectScheduledSMART(ctx, v, activity, time.Now(), c.Config.Collection.SMART, c.History, command)
+					}
 					c.mu.Lock()
 					c.disks = v
 					if err != nil {
@@ -230,6 +238,16 @@ func (c *Collector) Collect() error {
 		diskIO = diskDeltas(current, c.previousDisk, elapsed)
 		c.previousDisk = current
 		c.mu.Lock()
+		// Only a short, successfully observed interval qualifies as recent I/O.
+		// Idle counters are never interpreted as a physical power state.
+		c.recentDiskIO = map[string]time.Time{}
+		if err == nil && elapsed > 0 && elapsed <= 30 {
+			for name, delta := range diskIO {
+				if delta.ReadOps > 0 || delta.WriteOps > 0 {
+					c.recentDiskIO[name] = now
+				}
+			}
+		}
 		if err != nil {
 			c.diagnostics["disk_io"] = "Не удалось прочитать /proc/diskstats"
 		} else {

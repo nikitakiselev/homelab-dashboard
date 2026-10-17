@@ -7,6 +7,12 @@ collection:
   disks:
     enabled: true
     interval_seconds: 60
+  # Enable for ONE verified direct SATA disk first. USB/SAS are excluded.
+  # The snapshot and attempt budget survive restart in history.path (use SSD).
+  smart:
+    enabled: false
+    interval_seconds: 86400 # Minimum 24 h; failed/skipped attempts also count.
+    serials: [] # Exact lsblk serials, for example [EXAMPLE-HDD-001].
   gpu:
     enabled: true
     interval_seconds: 5

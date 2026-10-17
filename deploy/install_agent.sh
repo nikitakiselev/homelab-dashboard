@@ -9,7 +9,7 @@ release=${1:-latest}
 case "$release" in latest|main) base=https://github.com/nikitakiselev/homelab-dashboard/releases/latest/download ;; agent-v*[!a-zA-Z0-9._-]*) echo 'Invalid release tag.' >&2; exit 1 ;; agent-v*) base=https://github.com/nikitakiselev/homelab-dashboard/releases/download/$release ;; *) echo 'Use --ref agent-vX.Y.Z for a specific agent release.' >&2; exit 1 ;; esac
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
-apt-get install -y --no-install-recommends ca-certificates curl smartmontools util-linux
+apt-get install -y --no-install-recommends ca-certificates curl smartmontools hdparm util-linux
 for vendor in /sys/class/drm/card[0-9]*/device/vendor; do
     if [ -f "$vendor" ] && [ "$(cat "$vendor")" = 0x8086 ]; then
         apt-get install -y --no-install-recommends intel-gpu-tools

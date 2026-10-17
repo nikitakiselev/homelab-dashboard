@@ -27,7 +27,7 @@ func ReadDisks(ctx context.Context) ([]Disk, error) {
 	return readDisks(ctx, nil, command)
 }
 
-// ATA devices are passive: never send SMART/power commands or probe HDD filesystems.
+// Inventory is passive for ATA. The opt-in SMART scheduler is separate.
 func readDisks(ctx context.Context, previous []Disk, run func(context.Context, ...string) ([]byte, error)) ([]Disk, error) {
 	out, err := run(ctx, "lsblk", "-J", "-b", "-o", "NAME,TYPE,SIZE,MODEL,SERIAL,REV,ROTA,TRAN,MOUNTPOINTS")
 	if err != nil {
@@ -142,7 +142,7 @@ func readDisks(ctx context.Context, previous []Disk, run func(context.Context, .
 	return disks, nil
 }
 
-// Only NVMe SMART is polled. No ATA commands, including CHECK POWER MODE.
+// The metadata probe polls only NVMe SMART; it never issues ATA commands.
 func diskSMARTArgs(name, transport string) []string {
 	if strings.HasPrefix(name, "nvme") {
 		return []string{"smartctl", "-a", "-j", "-d", "nvme", "/dev/" + name}
@@ -228,6 +228,7 @@ func applySMART(d *Disk, raw []byte) {
 	d.PowerOnHours, d.PowerCycles = s.PowerOn.Hours, s.PowerCycles
 	d.PercentageUsed, d.AvailableSpare, d.MediaErrors = s.NVMe.Used, s.NVMe.Spare, s.NVMe.MediaErrors
 	d.ReallocatedSectors, d.PendingSectors, d.UncorrectableSectors = nil, nil, nil
+	d.LoadCycleCount, d.StartStopCount = nil, nil
 	warn := func(text string) {
 		if d.Health != "failed" {
 			d.Health = "warning"
@@ -242,6 +243,10 @@ func applySMART(d *Disk, raw []byte) {
 	}
 	for _, a := range s.ATA.Table {
 		switch a.ID {
+		case 4:
+			d.StartStopCount = a.Raw.Value
+		case 193:
+			d.LoadCycleCount = a.Raw.Value
 		case 5:
 			d.ReallocatedSectors = a.Raw.Value
 		case 197:

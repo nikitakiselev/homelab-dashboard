@@ -24,7 +24,7 @@ curl -fsSL https://raw.githubusercontent.com/nikitakiselev/homelab-dashboard/mai
 curl -fsSL https://raw.githubusercontent.com/nikitakiselev/homelab-dashboard/main/install.sh | sudo sh -s -- --agent
 ```
 
-В этом режиме скачивается готовый Go-бинарник из GitHub Releases и проверяется SHA-256. Python, Go-компилятор и Node.js на хосте не нужны. Устанавливаются smartmontools/util-linux и, при обнаружении Intel GPU, intel-gpu-tools. Агент работает от root для чтения оборудования.
+В этом режиме скачивается готовый Go-бинарник из GitHub Releases и проверяется SHA-256. Python, Go-компилятор и Node.js на хосте не нужны. Устанавливаются smartmontools/hdparm/util-linux и, при обнаружении Intel GPU, intel-gpu-tools. Агент работает от root для чтения оборудования.
 
 После запуска проверяется `/v1/metrics`; выводятся порт, токен и расположение YAML. Добавьте IP и токен в UI. Разрешите TCP 9108 только от центрального сервиса в уже используемом firewall.
 
@@ -48,12 +48,12 @@ curl -fsSL https://raw.githubusercontent.com/nikitakiselev/homelab-dashboard/mai
 
 ## Файлы и диагностика
 
-| Назначение | Центральный сервис | Отдельный агент |
-|---|---|---|
-| Токен | `/etc/homelab/dashboard.env` | `/etc/homelab/agent.env` |
-| Настройки | env и параметры CLI (`--retention-days`, `--bind`, `--port`, `--data`) | `/etc/homelab/agent.yaml` |
-| SQLite | `/var/lib/homelab/dashboard.sqlite` | `/var/lib/homelab-agent/agent.sqlite` |
-| Служба | `homelab-dashboard` | `homelab-agent` |
+| Назначение | Центральный сервис                                                     | Отдельный агент                       |
+| ---------- | ---------------------------------------------------------------------- | ------------------------------------- |
+| Токен      | `/etc/homelab/dashboard.env`                                           | `/etc/homelab/agent.env`              |
+| Настройки  | env и параметры CLI (`--retention-days`, `--bind`, `--port`, `--data`) | `/etc/homelab/agent.yaml`             |
+| SQLite     | `/var/lib/homelab/dashboard.sqlite`                                    | `/var/lib/homelab-agent/agent.sqlite` |
+| Служба     | `homelab-dashboard`                                                    | `homelab-agent`                       |
 
 ```sh
 systemctl status homelab-dashboard

@@ -39,6 +39,9 @@ type Disk struct {
 	SMARTUpdatedAt       *float64 `json:"smart_updated_at,omitempty"`
 	UsageUpdatedAt       *float64 `json:"usage_updated_at,omitempty"`
 	PowerOnHours         *float64 `json:"power_on_hours,omitempty"`
+	SMARTAttemptAt       *float64 `json:"smart_attempt_at,omitempty"`
+	LoadCycleCount       *float64 `json:"load_cycle_count,omitempty"`
+	StartStopCount       *float64 `json:"start_stop_count,omitempty"`
 	PowerCycles          *float64 `json:"power_cycles,omitempty"`
 	ReallocatedSectors   *float64 `json:"reallocated_sectors,omitempty"`
 	PendingSectors       *float64 `json:"pending_sectors,omitempty"`

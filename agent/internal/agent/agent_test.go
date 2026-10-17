@@ -144,3 +144,34 @@ func TestExplicitInvalidPortOverride(t *testing.T) {
 		t.Fatal("invalid explicit port was accepted")
 	}
 }
+
+func TestSMARTConfigRequiresExplicitScopeAndDailyBudget(t *testing.T) {
+	for _, raw := range []string{
+		"smart: null", "smart: {enabled: 'true'}", "smart: {enabled: true}",
+		"smart: {interval_seconds: 60}", "smart: {interval_seconds: .nan}",
+		"smart: {interval_seconds: 7776001}", "smart: {serials: [false]}",
+		"smart: {serials: ['']}", "smart: {serials: [' TEST']}",
+		"smart: {serials: [TEST, TEST]}",
+		"disks: {enabled: false}\n  smart: {enabled: true, serials: [TEST]}",
+		"interval_seconds: 60\n  smart: {enabled: true, serials: [TEST]}",
+	} {
+		p := filepath.Join(t.TempDir(), "agent.yaml")
+		if err := os.WriteFile(p, []byte("collection:\n  "+raw+"\n"), 0600); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := LoadConfig(p); err == nil {
+			t.Fatalf("unsafe config accepted: %s", raw)
+		}
+	}
+	p := filepath.Join(t.TempDir(), "agent.yaml")
+	if err := os.WriteFile(p, []byte("collection:\n  smart:\n    enabled: true\n    interval_seconds: 86400\n    serials: [EXAMPLE-HDD-001]\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	c, err := LoadConfig(p)
+	if err != nil || !c.Collection.SMART.Enabled || c.Collection.SMART.Serials[0] != "EXAMPLE-HDD-001" {
+		t.Fatalf("%+v %v", c.Collection.SMART, err)
+	}
+	if DefaultConfig().Collection.SMART.Enabled {
+		t.Fatal("SMART enabled by default")
+	}
+}
