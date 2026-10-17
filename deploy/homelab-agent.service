@@ -1,0 +1,24 @@
+[Unit]
+Description=Homelab Linux metrics agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Root permits smartctl to read health from physical disks. No management commands are exposed.
+User=root
+WorkingDirectory=/opt/homelab-dashboard
+EnvironmentFile=/etc/homelab/agent.env
+ExecStart=/usr/bin/python3 -m homelab.agent --data /var/lib/homelab-agent/agent.sqlite
+Restart=on-failure
+RestartSec=5
+StateDirectory=homelab-agent
+StateDirectoryMode=0700
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

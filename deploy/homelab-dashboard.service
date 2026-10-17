@@ -1,0 +1,24 @@
+[Unit]
+Description=Homelab dashboard
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=homelab
+Group=homelab
+WorkingDirectory=/opt/homelab-dashboard
+EnvironmentFile=/etc/homelab/dashboard.env
+ExecStart=/usr/bin/python3 -m homelab.server --bind 0.0.0.0 --data /var/lib/homelab/dashboard.sqlite
+Restart=on-failure
+RestartSec=5
+StateDirectory=homelab
+StateDirectoryMode=0700
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target
