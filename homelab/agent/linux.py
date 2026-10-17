@@ -9,6 +9,7 @@ import subprocess
 import time
 from pathlib import Path
 from .runtime import SamplingRuntime
+from .. import __version__
 
 
 def read(path, default=''):
@@ -197,7 +198,7 @@ class Collector(SamplingRuntime):
         self.previous_net,self.previous_time = counters,monotonic_now
         os_name = next((line.split('=',1)[1].strip('"') for line in read('/etc/os-release').splitlines()
                         if line.startswith('PRETTY_NAME=')), platform.system())
-        metrics = {'timestamp':now,'collection_interval':self.interval_seconds,'agent_id':self.agent_id,'hostname':platform.node(),
+        metrics = {'timestamp':now,'collection_interval':self.interval_seconds,'agent_id':self.agent_id,'agent_version':__version__,'hostname':platform.node(),
             'os':os_name,'platform':'Proxmox' if Path('/etc/pve').exists() else 'Linux',
             'cpu':{'usage':round(cpu,1) if cpu is not None else None,'cores':os.cpu_count(),
                    'model':next((l.split(':',1)[1].strip() for l in read('/proc/cpuinfo').splitlines()

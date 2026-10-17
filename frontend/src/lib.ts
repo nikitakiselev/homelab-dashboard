@@ -38,6 +38,7 @@ export type GPU = {
   temperature: number | null;
 };
 export type Metrics = {
+  agent_version?: string;
   diagnostics?: Record<string, string>;
   timestamp: number;
   hostname: string;

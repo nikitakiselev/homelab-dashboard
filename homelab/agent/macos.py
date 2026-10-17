@@ -8,6 +8,7 @@ import re
 import subprocess
 import time
 from .runtime import SamplingRuntime
+from .. import __version__
 
 
 def command(args):
@@ -144,7 +145,7 @@ class MacCollector(SamplingRuntime):
                     rx+=max(0,received-self.previous_net[name][0])
                     tx+=max(0,sent-self.previous_net[name][1])
         self.previous_net,self.previous_time=counters,monotonic_now
-        metrics={'timestamp':now,'collection_interval':self.interval_seconds,'agent_id':self.agent_id,'hostname':platform.node(),
+        metrics={'timestamp':now,'collection_interval':self.interval_seconds,'agent_id':self.agent_id,'agent_version':__version__,'hostname':platform.node(),
             'os':'macOS '+platform.mac_ver()[0],'platform':'macOS',
             'cpu':{'usage':usage,'cores':self.cores,'model':self.cpu_model},
             'memory':memory_stats(self.total_memory),'uptime':max(0,now-self.boot_time),

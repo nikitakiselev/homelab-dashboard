@@ -1212,6 +1212,9 @@ function ServerCard({
                     : "Linux"}
             </span>
           </div>
+          <div className="mt-1 text-[12px] text-zinc-500">
+            {h.local ? "Сборщик" : "Агент"}: {m?.agent_version || "Неизвестна"}
+          </div>
         </div>
         <div className="ml-auto flex flex-col items-end gap-1.5">
           <span
@@ -1695,6 +1698,10 @@ function HostDetails({ host }: { host: Host }) {
       <div>
         <h3 className="mb-3 text-sm font-semibold">Система</h3>
         <dl className="grid grid-cols-2 gap-y-3 text-sm">
+          <dt className="text-zinc-400">
+            Версия {host.local ? "сборщика" : "агента"}
+          </dt>
+          <dd className="text-right">{m.agent_version || "Неизвестна"}</dd>
           <dt className="text-zinc-400">Имя хоста</dt>
           <dd className="text-right">{m.hostname}</dd>
           <dt className="text-zinc-400">Время работы</dt>

@@ -40,3 +40,5 @@ journalctl -u homelab-agent -n 50 --no-pager
 ```
 
 Транспорт HTTP рассчитан на доверенную LAN/VPN. Не открывайте агент в интернет. Удаление службы не удаляет историю: `sudo systemctl disable --now homelab-agent` останавливает сбор.
+
+Версия агента показывается на карточке сервера и в его подробностях. CLI: `python3 -m homelab.agent --version` (из каталога установки `/opt/homelab-dashboard`). В API `/v1/metrics` это поле `agent_version`. Если установлен старый агент без этого поля, дашборд показывает «Неизвестна» до его обновления.

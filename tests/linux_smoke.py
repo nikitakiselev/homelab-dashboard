@@ -12,6 +12,7 @@ from urllib.error import HTTPError, URLError
 
 sys.path.insert(0,str(Path(__file__).resolve().parent.parent))
 from homelab.server.app import Dashboard
+from homelab import __version__
 
 
 def main():
@@ -39,6 +40,7 @@ def main():
             assert metrics['memory']['total']>0
             assert 0<=metrics['memory']['percent']<=100
             assert metrics['uptime']>0
+            assert metrics['agent_version']==__version__
             try:
                 urlopen(base+'/v1/metrics',timeout=2)
                 raise AssertionError('Agent allowed unauthenticated access')
@@ -51,8 +53,10 @@ def main():
             deadline=time.monotonic()+15
             while time.monotonic()<deadline and not dashboard.chart(hid,1): time.sleep(.1)
             assert dashboard.public_hosts()[0]['online']
+            assert dashboard.public_hosts()[0]['metrics']['agent_version']==__version__
             assert dashboard.chart(hid,1),'Agent history did not reach dashboard'
             restored=Dashboard(data+'/dashboard.sqlite')
+            assert restored.public_hosts()[0]['metrics']['agent_version']==__version__
             assert restored.chart(hid,90),'Dashboard restart lost history'
             builtin=Dashboard(data+'/builtin.sqlite',monitor_self=True)
             try:

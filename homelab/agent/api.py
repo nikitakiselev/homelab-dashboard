@@ -11,10 +11,12 @@ from ..shared.storage import History
 from ..shared.config import load_config
 from pathlib import Path
 from . import create_collector
+from .. import __version__
 
 
 def main():
     parser = argparse.ArgumentParser()
+    parser.add_argument('--version',action='version',version='homelab-agent '+__version__)
     parser.add_argument('--bind',default=None)
     parser.add_argument('--port',type=int,default=None)
     parser.add_argument('--data',default=None)
