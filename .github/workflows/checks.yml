@@ -16,6 +16,8 @@ jobs:
         with:
           node-version: "22"
           cache: npm
+      - run: python3 -m pip install -r requirements.txt
+      - run: sh -n install.sh
       - run: npm ci
       - run: npm run build
       - run: python3 -m unittest discover -s tests -v

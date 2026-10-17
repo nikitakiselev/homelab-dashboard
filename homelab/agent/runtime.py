@@ -18,6 +18,17 @@ class SamplingRuntime:
         self.disk_cache = []
         self.disk_time = 0
         self.error = None
+        self.interval_seconds = 5
+        self.disks_interval_seconds = 60
+        self.gpu_interval_seconds = 5
+        self.disks_enabled = True
+        self.gpu_enabled = True
+        self.interfaces = ()
+
+    def configure(self,config):
+        if config is None:return
+        for name in ('interval_seconds','disks_interval_seconds','gpu_interval_seconds','disks_enabled','gpu_enabled','interfaces'):
+            setattr(self,name,getattr(config,name))
 
     def hardware_loop(self, kind, interval):
         # SMART and GPU utilities may stall. They never block CPU/network sampling.
@@ -38,7 +49,8 @@ class SamplingRuntime:
     def start(self):
         if self.threads:
             return
-        for kind, interval in (("disks",60),("gpus",5)):
+        for kind, interval, enabled in (("disks",self.disks_interval_seconds,self.disks_enabled),("gpus",self.gpu_interval_seconds,self.gpu_enabled)):
+            if not enabled:continue
             self.threads.append(threading.Thread(target=self.hardware_loop,args=(kind,interval),daemon=True))
         self.threads.append(threading.Thread(target=self.run,daemon=True))
         for thread in self.threads:
@@ -57,5 +69,5 @@ class SamplingRuntime:
             except Exception as e:
                 self.error = str(e)
                 print('Collection error:',type(e).__name__,str(e),flush=True)
-            self.stop_event.wait(max(1,5-(time.monotonic()-started)))
+            self.stop_event.wait(max(.1,self.interval_seconds-(time.monotonic()-started)))
 

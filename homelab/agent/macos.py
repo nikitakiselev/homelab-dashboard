@@ -129,7 +129,7 @@ class MacCollector(SamplingRuntime):
             usage=round(max(0,min(100,100*(1-delta[2]/sum(delta)))),1) if sum(delta) else 0
         self.previous_cpu=ticks
         counters=network_counters(command(['netstat','-ibn']).decode())
-        configured=[name.strip() for name in os.getenv('HOMELAB_INTERFACES','').split(',') if name.strip()]
+        configured=[name.strip() for name in os.getenv('HOMELAB_INTERFACES',','.join(self.interfaces)).split(',') if name.strip()]
         selected=configured or [name for name in counters if re.fullmatch(r'en\d+',name)]
         missing=set(selected)-counters.keys()
         if missing: self.hardware_errors['network']='Не найдены интерфейсы: '+', '.join(sorted(missing))
@@ -144,7 +144,7 @@ class MacCollector(SamplingRuntime):
                     rx+=max(0,received-self.previous_net[name][0])
                     tx+=max(0,sent-self.previous_net[name][1])
         self.previous_net,self.previous_time=counters,monotonic_now
-        metrics={'timestamp':now,'agent_id':self.agent_id,'hostname':platform.node(),
+        metrics={'timestamp':now,'collection_interval':self.interval_seconds,'agent_id':self.agent_id,'hostname':platform.node(),
             'os':'macOS '+platform.mac_ver()[0],'platform':'macOS',
             'cpu':{'usage':usage,'cores':self.cores,'model':self.cpu_model},
             'memory':memory_stats(self.total_memory),'uptime':max(0,now-self.boot_time),

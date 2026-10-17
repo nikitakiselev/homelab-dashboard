@@ -239,7 +239,7 @@ function App() {
               key={id}
               onClick={() => setView(id)}
               className={cn(
-                "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-[13px] transition-colors cursor-pointer",
+                "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-[14px] transition-colors cursor-pointer",
                 view === id
                   ? "bg-white font-medium text-[#25272c] shadow-[0_1px_5px_#00000007]"
                   : "text-[#777981] hover:bg-black/3",
@@ -252,7 +252,7 @@ function App() {
               />
               {labels[id]}
               {id === "servers" && (
-                <span className="ml-auto rounded bg-black/4 px-1.5 text-[10px] text-zinc-400">
+                <span className="ml-auto rounded bg-black/4 px-1.5 text-[12px] text-zinc-400">
                   {visible.length}
                 </span>
               )}
@@ -261,7 +261,7 @@ function App() {
         </nav>
         <div className="mt-auto">
           <div className="mb-5 rounded-xl border border-white/80 bg-white/45 p-3">
-            <div className="flex items-center gap-2 text-[11px] font-medium">
+            <div className="flex items-center gap-2 text-[14px] font-medium">
               <span
                 className={cn(
                   "h-1.5 w-1.5 rounded-full",
@@ -270,25 +270,25 @@ function App() {
               />
               {error ? "Нет связи с сервисом" : "Центральный сервис"}
             </div>
-            <p className="mt-1.5 mb-0 pl-3.5 text-[10px] text-zinc-400">
+            <p className="mt-1.5 mb-0 pl-3.5 text-[12px] text-zinc-400">
               Сбор метрик активен
             </p>
           </div>
           <button
             onClick={() => setHelp(true)}
-            className="flex items-center gap-2.5 px-3 py-2 text-xs text-zinc-500 hover:text-zinc-800 cursor-pointer"
+            className="flex items-center gap-2.5 px-3 py-2 text-sm text-zinc-500 hover:text-zinc-800 cursor-pointer"
           >
             <CircleHelp size={16} />
             Как это работает
             <ArrowUpRight size={12} />
           </button>
           <div className="mt-4 flex items-center gap-2.5 border-t border-black/5 px-2 pt-5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#dce4ec] text-[10px] font-semibold text-[#66788c]">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#dce4ec] text-[12px] font-semibold text-[#66788c]">
               HL
             </div>
             <div>
-              <div className="text-xs font-medium">Homelab</div>
-              <div className="mt-0.5 text-[10px] text-zinc-400">
+              <div className="text-sm font-medium">Homelab</div>
+              <div className="mt-0.5 text-[12px] text-zinc-400">
                 Локальный мониторинг
               </div>
             </div>
@@ -310,13 +310,13 @@ function App() {
       </aside>
       <main className="min-w-0 flex-1 lg:ml-[218px]">
         <header className="flex h-[70px] items-center justify-between gap-4 border-b border-black/[0.05] bg-white/60 px-5 lg:px-9">
-          <div className="flex items-center gap-2 text-xs">
+          <div className="flex items-center gap-2 text-sm">
             <span className="text-zinc-400">Homelab</span>
             <ChevronRight size={12} className="text-zinc-300" />
             <span>{labels[view]}</span>
           </div>
           <div className="flex items-center gap-4">
-            <div className="hidden items-center gap-2 text-[11px] text-zinc-400 sm:flex">
+            <div className="hidden items-center gap-2 text-[14px] text-zinc-400 sm:flex">
               <span
                 className={cn(
                   "h-1.5 w-1.5 rounded-full",
@@ -356,14 +356,14 @@ function App() {
         <div className="mx-auto max-w-[1510px] px-5 py-8 lg:px-9 lg:py-9">
           <div className="mb-7 flex flex-wrap items-center justify-between gap-4">
             <div>
-              <div className="mb-1.5 flex items-center gap-2 text-[11px] text-zinc-400">
+              <div className="mb-1.5 flex items-center gap-2 text-[14px] text-zinc-400">
                 <span className="h-px w-5 bg-zinc-300" />
                 ИНФРАСТРУКТУРА
               </div>
               <h1 className="m-0 text-[30px] leading-tight font-semibold tracking-[-1.1px]">
                 {view === "overview" ? "Обзор" : labels[view]}
               </h1>
-              <p className="mt-2 mb-0 text-[13px] text-[#92949c]">
+              <p className="mt-2 mb-0 text-[14px] text-[#92949c]">
                 {view === "overview"
                   ? "Состояние серверов и использование ресурсов."
                   : view === "storage"
@@ -375,14 +375,14 @@ function App() {
             </div>
             <Button
               onClick={() => setAdd(true)}
-              className="rounded-[9px] px-4 text-xs"
+              className="rounded-[9px] px-4 text-sm"
             >
               <Plus size={16} />
               Добавить сервер
             </Button>
           </div>
           {hosts.some((h) => h.demo) && showDemo && (
-            <div className="mb-6 flex items-center justify-between gap-3 rounded-xl border border-blue-100 bg-blue-50/60 px-4 py-2.5 text-[11px] text-blue-600">
+            <div className="mb-6 flex items-center justify-between gap-3 rounded-xl border border-blue-100 bg-blue-50/60 px-4 py-2.5 text-[14px] text-blue-600">
               <span className="flex items-center gap-2">
                 <Monitor size={14} />
                 <span>
@@ -521,7 +521,7 @@ function App() {
                       <h2 className="m-0 text-[16px] font-semibold tracking-[-.3px]">
                         Серверы
                       </h2>
-                      <span className="rounded-md border border-black/5 bg-white px-1.5 py-0.5 text-[10px] text-zinc-400">
+                      <span className="rounded-md border border-black/5 bg-white px-1.5 py-0.5 text-[12px] text-zinc-400">
                         {visible.length}
                       </span>
                     </div>
@@ -532,7 +532,7 @@ function App() {
                         placeholder="Найти сервер…"
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
-                        className="w-32 bg-transparent text-[11px] text-zinc-700 outline-none focus:shadow-none sm:w-40"
+                        className="w-32 bg-transparent text-[14px] text-zinc-700 outline-none focus:shadow-none sm:w-40"
                       />
                     </label>
                   </div>
@@ -585,17 +585,17 @@ function App() {
                         </div>
                         <div>
                           <h2 className="text-sm font-semibold">{h.name}</h2>
-                          <p className="text-[11px] text-zinc-400">
+                          <p className="text-[14px] text-zinc-400">
                             {h.ip} · {h.online ? "В сети" : "Недоступен"}
                             {h.demo ? " · Демо" : ""}
                           </p>
                         </div>
-                        <span className="ml-auto text-xs text-zinc-400">
+                        <span className="ml-auto text-sm text-zinc-400">
                           {h.metrics?.disks.length || 0} накопителей
                         </span>
                       </div>
                       {!h.online && (
-                        <p className="mb-3 text-xs text-orange-500">
+                        <p className="mb-3 text-sm text-orange-500">
                           Последние доступные данные. Сервер не в сети.
                         </p>
                       )}
@@ -622,7 +622,7 @@ function App() {
                             aria-label="Сервер для графика"
                             value={active?.id || ""}
                             onChange={(e) => setSelected(e.target.value)}
-                            className="max-w-full rounded-md border border-zinc-200 bg-white px-2 py-1 text-xs text-zinc-600"
+                            className="max-w-full rounded-md border border-zinc-200 bg-white px-2 py-1 text-sm text-zinc-600"
                           >
                             {eligible.map((h) => (
                               <option key={h.id} value={h.id}>
@@ -639,7 +639,7 @@ function App() {
                             key={d}
                             onClick={() => setPeriod(d)}
                             className={cn(
-                              "rounded-md px-3 py-1 text-[10px] cursor-pointer",
+                              "rounded-md px-3 py-1 text-[12px] cursor-pointer",
                               period === d
                                 ? "bg-white font-medium shadow-xs"
                                 : "text-zinc-400",
@@ -652,7 +652,7 @@ function App() {
                     </div>
                     <div className="mb-2 flex items-center gap-7">
                       <div>
-                        <span className="mb-1 flex items-center gap-1.5 text-[10px] text-zinc-400">
+                        <span className="mb-1 flex items-center gap-1.5 text-[12px] text-zinc-400">
                           <ArrowDown size={11} className="text-blue-500" />
                           Приём сейчас
                         </span>
@@ -663,7 +663,7 @@ function App() {
                         </span>
                       </div>
                       <div>
-                        <span className="mb-1 flex items-center gap-1.5 text-[10px] text-zinc-400">
+                        <span className="mb-1 flex items-center gap-1.5 text-[12px] text-zinc-400">
                           <ArrowUp size={11} className="text-emerald-500" />
                           Передача сейчас
                         </span>
@@ -673,14 +673,14 @@ function App() {
                             : "—"}
                         </span>
                       </div>
-                      <div className="ml-auto hidden text-right text-[10px] leading-5 text-zinc-400 sm:block">
+                      <div className="ml-auto hidden text-right text-[12px] leading-5 text-zinc-400 sm:block">
                         <div>По всем серверам</div>
                         <div>
                           ↓ {speed(rx)} &nbsp; ↑ {speed(tx)}
                         </div>
                       </div>
                     </div>
-                    <div className="h-[194px] pt-4">
+                    <div className="h-[240px] pt-4">
                       {historyLoading ? (
                         <Empty text="Загружаем историю…" />
                       ) : historyError ? (
@@ -743,14 +743,14 @@ function App() {
                                   )
                                   .replace(/^.*?, /, "")
                               }
-                              tick={{ fontSize: 9 }}
+                              tick={{ fontSize: 12 }}
                             />
                             <YAxis
                               axisLine={false}
                               tickLine={false}
                               tickFormatter={(v) => bytes(v, 0)}
                               width={63}
-                              tick={{ fontSize: 9 }}
+                              tick={{ fontSize: 12 }}
                             />
                             <Tooltip
                               labelFormatter={(v) =>
@@ -765,7 +765,7 @@ function App() {
                               contentStyle={{
                                 borderRadius: 12,
                                 border: "1px solid #eee",
-                                fontSize: 11,
+                                fontSize: 14,
                                 boxShadow: "0 4px 20px #00000008",
                               }}
                             />
@@ -795,7 +795,7 @@ function App() {
                         <Empty text="Агент начнёт накапливать историю после установки." />
                       )}
                     </div>
-                    <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-black/5 pt-3 text-[10px] text-zinc-400">
+                    <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-black/5 pt-3 text-[12px] text-zinc-400">
                       <div className="flex gap-4">
                         <span className="flex items-center gap-1.5">
                           <i className="h-1.5 w-1.5 rounded-full bg-blue-500" />
@@ -813,7 +813,7 @@ function App() {
                       </span>
                     </div>
                     {active?.history_error && (
-                      <p className="mt-2 text-[10px] text-orange-500">
+                      <p className="mt-2 text-[12px] text-orange-500">
                         {active.history_error}
                       </p>
                     )}
@@ -850,14 +850,14 @@ function App() {
                             )}
                           </div>
                           <div>
-                            <div className="text-xs font-medium">
+                            <div className="text-sm font-medium">
                               {warnings.length
                                 ? "Предупреждения SMART"
                                 : allDisks.some((d) => d.health === "unknown")
                                   ? "SMART: неполные данные"
                                   : "SMART: ошибок не обнаружено"}
                             </div>
-                            <div className="mt-1 text-[10px] text-zinc-400">
+                            <div className="mt-1 text-[12px] text-zinc-400">
                               {warnings.length
                                 ? `${warnings.length} из ${allDisks.length} требуют проверки`
                                 : allDisks.some((d) => d.health === "unknown")
@@ -877,7 +877,7 @@ function App() {
                               className="flex w-full items-center gap-2 text-left cursor-pointer"
                             >
                               <Server size={14} className="text-zinc-400" />
-                              <span className="min-w-0 flex-1 truncate text-[11px]">
+                              <span className="min-w-0 flex-1 truncate text-[14px]">
                                 {h.name}
                               </span>
                               <div className="flex gap-1">
@@ -896,7 +896,7 @@ function App() {
                                   />
                                 ))}
                               </div>
-                              <span className="w-14 text-right text-[10px] text-zinc-400">
+                              <span className="w-14 text-right text-[12px] text-zinc-400">
                                 {h.metrics?.disks.length} диска
                               </span>
                               <ChevronRight
@@ -906,7 +906,7 @@ function App() {
                             </button>
                           ))}
                         </div>
-                        <div className="mt-5 border-t border-black/5 pt-3 text-[10px] leading-relaxed text-zinc-400">
+                        <div className="mt-5 border-t border-black/5 pt-3 text-[12px] leading-relaxed text-zinc-400">
                           SMART проверяется каждую минуту.
                           <br />
                           Подробности доступны в разделе накопителей.
@@ -920,7 +920,7 @@ function App() {
               )}
             </>
           )}
-          <footer className="mt-8 flex flex-wrap items-center justify-between gap-2 text-[10px] text-[#b0b2b9]">
+          <footer className="mt-8 flex flex-wrap items-center justify-between gap-2 text-[12px] text-[#b0b2b9]">
             <span className="flex items-center gap-1.5">
               <ShieldCheck size={12} />
               Локальный мониторинг
@@ -971,7 +971,7 @@ function App() {
               CPU, память, GPU при поддержке драйвера, диски и сетевой трафик.
               SMART требует smartmontools и прав на чтение дисков.
             </p>
-            <p className="rounded-xl bg-zinc-50 p-3 text-xs leading-5">
+            <p className="rounded-xl bg-zinc-50 p-3 text-sm leading-5">
               Графики усредняются по 5 минутам, за 90 дней — по 6 часам.
               Скорость указана в байтах в секунду. На сетевых мостах счётчики
               могут дублироваться: задайте интерфейсы через HOMELAB_INTERFACES.
@@ -1004,7 +1004,7 @@ function App() {
               autoComplete="current-password"
             />
             {error && (
-              <p role="alert" className="text-xs text-red-500">
+              <p role="alert" className="text-sm text-red-500">
                 {error}
               </p>
             )}
@@ -1026,7 +1026,7 @@ function App() {
               <DialogTitle className="text-xl font-semibold">
                 {detail.name}
               </DialogTitle>
-              <DialogDescription className="mt-2 text-xs text-zinc-500">
+              <DialogDescription className="mt-2 text-sm text-zinc-500">
                 {detail.local
                   ? "Центральный сервер"
                   : `${detail.ip}:${detail.port}`}{" "}
@@ -1140,7 +1140,7 @@ function Summary({
   return (
     <Card className="p-4 xl:p-5">
       <div className="mb-4 flex items-center justify-between">
-        <span className="text-[11px] text-zinc-500">{title}</span>
+        <span className="text-[14px] text-zinc-500">{title}</span>
         <div className={cn("rounded-lg p-1.5", colors[color])}>
           <Icon size={15} strokeWidth={1.7} />
         </div>
@@ -1151,8 +1151,8 @@ function Summary({
         </span>
         <span className="text-base font-normal text-zinc-300">{unit}</span>
       </div>
-      <div className="mt-2 min-h-4 text-[10px] text-zinc-400">{detail}</div>
-      <div className="mt-4 flex h-3 items-center gap-2 text-[9px] text-zinc-400">
+      <div className="mt-2 min-h-4 text-[12px] text-zinc-400">{detail}</div>
+      <div className="mt-4 flex min-h-5 items-center gap-2 text-[12px] text-zinc-400">
         {footer}
       </div>
     </Card>
@@ -1197,12 +1197,12 @@ function ServerCard({
           />
         </div>
         <div className="min-w-0">
-          <h3 className="truncate text-[13px] font-semibold tracking-[-.2px]">
+          <h3 className="truncate text-[14px] font-semibold tracking-[-.2px]">
             {h.name}
           </h3>
-          <div className="mt-1 flex items-center gap-2 text-[10px] text-zinc-400">
+          <div className="mt-1 flex items-center gap-2 text-[12px] text-zinc-400">
             <span>{h.local ? "Этот сервер" : h.ip}</span>
-            <span className="rounded border border-zinc-100 bg-zinc-50 px-1.5 py-px text-[8px]">
+            <span className="rounded border border-zinc-100 bg-zinc-50 px-1.5 py-px text-[12px]">
               {m?.platform === "Proxmox"
                 ? "Proxmox"
                 : m?.platform === "macOS"
@@ -1216,7 +1216,7 @@ function ServerCard({
         <div className="ml-auto flex flex-col items-end gap-1.5">
           <span
             className={cn(
-              "rounded-full px-2 py-0.5 text-[9px]",
+              "rounded-full px-2 py-0.5 text-[12px]",
               h.online
                 ? "bg-emerald-50 text-emerald-600"
                 : "bg-zinc-100 text-zinc-400",
@@ -1224,7 +1224,7 @@ function ServerCard({
           >
             {h.online ? "В сети" : "Недоступен"}
           </span>
-          {h.demo && <span className="text-[8px] text-zinc-300">ДЕМО</span>}
+          {h.demo && <span className="text-[12px] text-zinc-300">ДЕМО</span>}
         </div>
       </div>
       <div className="grid grid-cols-2 gap-x-5 gap-y-4">
@@ -1250,7 +1250,7 @@ function ServerCard({
           />
         )}
         <div className={m?.gpus.length ? "" : "col-span-2"}>
-          <div className="mb-2 flex items-center justify-between text-[10px]">
+          <div className="mb-2 flex items-center justify-between text-[12px]">
             <span className="text-zinc-400">
               Накопители{" "}
               <span className="ml-1 text-zinc-300">{m?.disks.length || 0}</span>
@@ -1290,7 +1290,7 @@ function ServerCard({
           </div>
         </div>
       </div>
-      <div className="mt-5 flex items-center justify-between border-t border-black/5 pt-3 text-[10px] text-zinc-400">
+      <div className="mt-5 flex items-center justify-between border-t border-black/5 pt-3 text-[12px] text-zinc-400">
         <div className="flex gap-3">
           <span className="flex items-center gap-1">
             <ArrowDown size={10} className="text-blue-400" />
@@ -1313,7 +1313,7 @@ function ServerCard({
       </div>
       {!h.online && h.error && (
         <p
-          className="mt-2 truncate text-[10px] text-orange-500"
+          className="mt-2 truncate text-[12px] text-orange-500"
           title={h.error}
         >
           {h.error}
@@ -1333,7 +1333,7 @@ function Meter({
 }) {
   return (
     <div>
-      <div className="mb-2 flex justify-between gap-2 text-[10px]">
+      <div className="mb-2 flex justify-between gap-2 text-[12px]">
         <span className="text-zinc-400">{label}</span>
         <span className="font-medium text-zinc-600">{percent(value)}</span>
       </div>
@@ -1353,7 +1353,7 @@ function Meter({
       {detail && (
         <div
           title={detail}
-          className="mt-1.5 truncate text-[8px] text-zinc-400"
+          className="mt-1.5 truncate text-[12px] text-zinc-400"
         >
           {detail}
         </div>
@@ -1384,14 +1384,14 @@ function DiskList({ disks }: { disks: Disk[] }) {
               <HardDrive size={20} strokeWidth={1.4} />
             </div>
             <div className="min-w-[130px] flex-1">
-              <div className="text-xs font-medium">{d.model}</div>
-              <div className="mt-1 text-[10px] text-zinc-400">
+              <div className="text-sm font-medium">{d.model}</div>
+              <div className="mt-1 text-[12px] text-zinc-400">
                 /dev/{d.name} · {d.type} · {bytes(d.total)}
                 {d.temperature != null ? ` · ${d.temperature} °C` : ""}
               </div>
             </div>
             <div className="min-w-[120px] flex-1 sm:max-w-60">
-              <div className="mb-1.5 text-[10px] text-zinc-400">
+              <div className="mb-1.5 text-[12px] text-zinc-400">
                 {d.volumes.length
                   ? `${bytes(d.used)} занято в томах`
                   : "Нет смонтированных томов"}
@@ -1407,7 +1407,7 @@ function DiskList({ disks }: { disks: Disk[] }) {
             </div>
             <span
               className={cn(
-                "ml-auto flex items-center gap-1.5 rounded-full px-2 py-1 text-[10px]",
+                "ml-auto flex items-center gap-1.5 rounded-full px-2 py-1 text-[12px]",
                 d.health === "healthy"
                   ? "bg-emerald-50 text-emerald-600"
                   : d.health === "unknown"
@@ -1433,7 +1433,7 @@ function DiskList({ disks }: { disks: Disk[] }) {
             />
           </button>
           {open === d.name && (
-            <div className="mb-4 rounded-xl bg-zinc-50 p-4 text-xs text-zinc-500 appear">
+            <div className="mb-4 rounded-xl bg-zinc-50 p-4 text-sm text-zinc-500 appear">
               {d.warning && <p className="mb-3 text-orange-600">{d.warning}</p>}
               {d.health === "unknown" && (
                 <p className="mb-3">
@@ -1450,7 +1450,7 @@ function DiskList({ disks }: { disks: Disk[] }) {
                   </span>
                 </div>
               ))}
-              <p className="mt-3 text-[10px] text-zinc-400">
+              <p className="mt-3 text-[12px] text-zinc-400">
                 Занятое место рассчитано по смонтированным файловым системам.
                 RAID, ZFS и LVM могут объединять несколько физических дисков;
                 объём тома не равен ёмкости отдельного диска.
@@ -1465,7 +1465,7 @@ function DiskList({ disks }: { disks: Disk[] }) {
 }
 function Empty({ text }: { text: string }) {
   return (
-    <div className="flex h-full min-h-28 items-center justify-center px-5 text-center text-xs leading-5 text-zinc-400">
+    <div className="flex h-full min-h-28 items-center justify-center px-5 text-center text-sm leading-5 text-zinc-400">
       {text}
     </div>
   );
@@ -1527,7 +1527,7 @@ function AddServer({
             }
           }}
         >
-          <label className="block text-xs font-medium">
+          <label className="block text-sm font-medium">
             Название{" "}
             <span className="font-normal text-zinc-400">· необязательно</span>
             <input
@@ -1539,7 +1539,7 @@ function AddServer({
             />
           </label>
           <div className="flex gap-3">
-            <label className="block flex-1 text-xs font-medium">
+            <label className="block flex-1 text-sm font-medium">
               IP-адрес
               <input
                 required
@@ -1549,7 +1549,7 @@ function AddServer({
                 className="mt-2 h-10 w-full rounded-lg border border-zinc-200 px-3 text-sm font-normal"
               />
             </label>
-            <label className="block w-24 text-xs font-medium">
+            <label className="block w-24 text-sm font-medium">
               Порт
               <input
                 required
@@ -1562,7 +1562,7 @@ function AddServer({
               />
             </label>
           </div>
-          <label className="block text-xs font-medium">
+          <label className="block text-sm font-medium">
             Токен агента
             <input
               required
@@ -1577,11 +1577,11 @@ function AddServer({
             />
           </label>
           <div className="rounded-xl bg-zinc-50 p-3">
-            <div className="mb-2 flex items-center gap-2 text-[11px] text-zinc-500">
+            <div className="mb-2 flex items-center gap-2 text-[14px] text-zinc-500">
               <Terminal size={13} />
               Агент ещё не запущен?
             </div>
-            <p className="mb-2 text-[10px] leading-4 text-zinc-400">
+            <p className="mb-2 text-[12px] leading-4 text-zinc-400">
               Скачайте архив, перенесите на Linux-хост и распакуйте. Из каталога
               homelab-agent запустите установщик. Токен будет в
               /etc/homelab/agent.env.
@@ -1603,7 +1603,7 @@ function AddServer({
               Скачать Linux-агент
             </Button>
             <div className="flex items-center gap-2">
-              <code className="min-w-0 flex-1 overflow-x-auto whitespace-nowrap text-[9px] text-zinc-500">
+              <code className="min-w-0 flex-1 overflow-x-auto whitespace-nowrap text-[12px] text-zinc-500">
                 {cmd}
               </code>
               <button
@@ -1629,7 +1629,7 @@ function AddServer({
           {error && (
             <p
               role="alert"
-              className="rounded-lg bg-red-50 p-3 text-xs text-red-500"
+              className="rounded-lg bg-red-50 p-3 text-sm text-red-500"
             >
               {error}
             </p>
@@ -1666,7 +1666,7 @@ function HostDetails({ host }: { host: Host }) {
           <p
             key={key}
             role="status"
-            className="rounded-lg bg-orange-50 p-3 text-xs text-orange-600"
+            className="rounded-lg bg-orange-50 p-3 text-sm text-orange-600"
           >
             {key}: {value}
           </p>
@@ -1674,7 +1674,7 @@ function HostDetails({ host }: { host: Host }) {
       {!host.online && (
         <div
           role="status"
-          className="rounded-lg bg-orange-50 p-3 text-xs text-orange-600"
+          className="rounded-lg bg-orange-50 p-3 text-sm text-orange-600"
         >
           Сервер недоступен. Последние данные:{" "}
           {new Date(m.timestamp * 1000).toLocaleString("ru-RU")}. {host.error}
@@ -1693,8 +1693,8 @@ function HostDetails({ host }: { host: Host }) {
         />
       </div>
       <div>
-        <h3 className="mb-3 text-xs font-semibold">Система</h3>
-        <dl className="grid grid-cols-2 gap-y-3 text-xs">
+        <h3 className="mb-3 text-sm font-semibold">Система</h3>
+        <dl className="grid grid-cols-2 gap-y-3 text-sm">
           <dt className="text-zinc-400">Имя хоста</dt>
           <dd className="text-right">{m.hostname}</dd>
           <dt className="text-zinc-400">Время работы</dt>
@@ -1716,7 +1716,7 @@ function HostDetails({ host }: { host: Host }) {
       </div>
       {!!m.gpus.length && (
         <div>
-          <h3 className="mb-3 text-xs font-semibold">Видеокарты</h3>
+          <h3 className="mb-3 text-sm font-semibold">Видеокарты</h3>
           <div className="space-y-3">
             {m.gpus.map((gpu, index) => (
               <div
@@ -1728,7 +1728,7 @@ function HostDetails({ host }: { host: Host }) {
                   value={host.online ? gpu.usage : null}
                   detail={gpu.name}
                 />
-                <p className="mt-3 text-[11px] text-zinc-400">
+                <p className="mt-3 text-[14px] text-zinc-400">
                   {gpu.memory_used != null && gpu.memory_total != null
                     ? `VRAM ${bytes(gpu.memory_used)} / ${bytes(gpu.memory_total)}`
                     : gpu.shared_memory
@@ -1742,7 +1742,7 @@ function HostDetails({ host }: { host: Host }) {
         </div>
       )}
       <div>
-        <h3 className="text-xs font-semibold">Накопители · {m.disks.length}</h3>
+        <h3 className="text-sm font-semibold">Накопители · {m.disks.length}</h3>
         <DiskList disks={m.disks} />
       </div>
     </div>

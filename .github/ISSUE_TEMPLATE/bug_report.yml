@@ -1,0 +1,30 @@
+name: Ошибка
+description: Воспроизводимая ошибка в дашборде, агенте или установщике
+body:
+  - type: markdown
+    attributes:
+      value: Не прикладывайте токены, приватные IP/имена хостов и базы метрик. Уязвимости описывайте по SECURITY.md.
+  - type: textarea
+    id: environment
+    attributes:
+      label: Окружение
+      description: ОС, версия Python/Node, версия или коммит проекта; центральный сервис или агент.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Как воспроизвести
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Ожидаемое и фактическое поведение
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Обезличенные логи
+      render: text

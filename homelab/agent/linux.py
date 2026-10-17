@@ -175,7 +175,7 @@ class Collector(SamplingRuntime):
             values = data.split()
             interfaces.append({'name':name,'rx_bytes':int(values[0]),'tx_bytes':int(values[8]),
                                'physical':Path('/sys/class/net', name, 'device').exists()})
-        configured = [x.strip() for x in os.getenv('HOMELAB_INTERFACES','').split(',') if x.strip()]
+        configured = [x.strip() for x in os.getenv('HOMELAB_INTERFACES',','.join(self.interfaces)).split(',') if x.strip()]
         selected = [n for n in interfaces if n['name'] in configured] if configured else [n for n in interfaces if n['physical']]
         if not selected and not configured:
             selected = [n for n in interfaces if not n['name'].startswith(('veth','docker','br-','virbr','tap','fw'))]
@@ -197,7 +197,7 @@ class Collector(SamplingRuntime):
         self.previous_net,self.previous_time = counters,monotonic_now
         os_name = next((line.split('=',1)[1].strip('"') for line in read('/etc/os-release').splitlines()
                         if line.startswith('PRETTY_NAME=')), platform.system())
-        metrics = {'timestamp':now,'agent_id':self.agent_id,'hostname':platform.node(),
+        metrics = {'timestamp':now,'collection_interval':self.interval_seconds,'agent_id':self.agent_id,'hostname':platform.node(),
             'os':os_name,'platform':'Proxmox' if Path('/etc/pve').exists() else 'Linux',
             'cpu':{'usage':round(cpu,1) if cpu is not None else None,'cores':os.cpu_count(),
                    'model':next((l.split(':',1)[1].strip() for l in read('/proc/cpuinfo').splitlines()

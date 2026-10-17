@@ -19,6 +19,7 @@ from urllib.request import Request, build_opener, HTTPRedirectHandler, ProxyHand
 from ..shared.storage import History, RETENTION
 from .bundle import agent_archive
 from ..agent import create_collector
+from ..shared.config import load_config
 
 class NoRedirect(HTTPRedirectHandler):
     def redirect_request(self,*args):
@@ -48,7 +49,9 @@ def validate_metrics(m):
         if not isinstance(m.get(key),dict): raise ValueError('Неполные метрики агента')
     for key in ('gpus','disks'):
         if not isinstance(m.get(key),list): raise ValueError('Неполные метрики агента')
-    if abs(time.time()-float(m['timestamp']))>60:
+    interval=float(m.get('collection_interval',5))
+    if not 1<=interval<=300:raise ValueError('Неверный интервал сбора')
+    if abs(time.time()-float(m['timestamp']))>max(60,interval*3):
         raise ValueError('Метрики устарели или часы сервера не синхронизированы')
     return m
 
@@ -81,8 +84,8 @@ def demo_metrics(index):
                    'memory_used':4.2*1024**3,'memory_total':12*1024**3,'temperature':51}] if index==1 else []}
 
 class Dashboard:
-    def __init__(self,path,demo=False,monitor_self=False):
-        self.history = History(path)
+    def __init__(self,path,demo=False,monitor_self=False,collector_config=None):
+        self.history = History(path,retention_days=collector_config.retention_days if collector_config else 90)
         self.path = str(path)
         os.chmod(self.path,0o600)
         self.demo = demo
@@ -106,7 +109,7 @@ class Dashboard:
         if monitor_self:
             if platform.system() not in ('Linux','Darwin'):
                 raise ValueError('Built-in collection supports Linux and macOS')
-            self.local_collector = create_collector(self.history,history_host='local')
+            self.local_collector = create_collector(self.history,history_host='local',config=collector_config)
             self.local_collector.start()
 
     def close(self):
@@ -177,7 +180,7 @@ class Dashboard:
         with self.lock:
             for h in self.hosts():
                 m=self.cache.get(h['id'])
-                online=h['id'] in self.verified and m is not None and time.time()-m['timestamp']<35 and h['id'] not in self.errors
+                online=h['id'] in self.verified and m is not None and time.time()-m['timestamp']<max(35,float(m.get('collection_interval',5))*3) and h['id'] not in self.errors
                 result.append({'id':h['id'],'name':h['name'],'ip':h['ip'],'port':h['port'],
                     'online':online,'metrics':m,'error':self.errors.get(h['id']),
                     'history_error':self.errors.get(h['id']+'-history'),'demo':False})
@@ -185,7 +188,7 @@ class Dashboard:
             m = self.local_collector.latest
             result.insert(0,{'id':'local','name':m['hostname'] if m else platform.node(),
                 'ip':'127.0.0.1','port':None,'local':True,'demo':False,'metrics':m,
-                'online':m is not None and time.time()-m['timestamp']<35,
+                'online':m is not None and time.time()-m['timestamp']<max(35,float(m.get('collection_interval',5))*3),
                 'error':self.local_collector.error,'history_error':None})
         if self.demo:
             result.extend({'id':f'demo-{i}','name':demo_metrics(i)['hostname'],'ip':f'192.168.1.{10+i*10}',
@@ -327,11 +330,15 @@ def main():
     p.add_argument('--data',default='./data/dashboard.sqlite')
     p.add_argument('--demo',action='store_true')
     p.add_argument('--no-self-monitor',action='store_true',help='Disable the built-in local collector')
+    p.add_argument('--collector-config',type=Path)
     args=p.parse_args()
+    config_path=args.collector_config or (Path('/etc/homelab/collector.yaml') if Path('/etc/homelab/collector.yaml').exists() else None)
+    try:collector_config=load_config(config_path)
+    except ValueError as error:p.error(str(error))
     token=os.getenv('HOMELAB_DASHBOARD_TOKEN','')
     if args.bind not in ('127.0.0.1','::1','localhost') and len(token)<24:
         p.error('For LAN access, set HOMELAB_DASHBOARD_TOKEN (24+ characters)')
-    dashboard=Dashboard(args.data,args.demo,monitor_self=platform.system() in ('Linux','Darwin') and not args.no_self_monitor)
+    dashboard=Dashboard(args.data,args.demo,monitor_self=platform.system() in ('Linux','Darwin') and not args.no_self_monitor,collector_config=collector_config)
     threading.Thread(target=dashboard.run,daemon=True).start()
     dist=Path(__file__).resolve().parents[2]/'dist'
     print(f'Dashboard: http://{args.bind}:{args.port}',flush=True)

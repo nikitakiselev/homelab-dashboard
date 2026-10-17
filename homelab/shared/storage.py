@@ -6,7 +6,8 @@ from pathlib import Path
 RETENTION = 90 * 86400
 
 class History:
-    def __init__(self, path):
+    def __init__(self, path, retention_days=90):
+        self.retention = retention_days*86400
         Path(path).parent.mkdir(parents=True, exist_ok=True)
         self.path = str(path)
         with self.connect() as db:
@@ -40,17 +41,17 @@ class History:
                 tx=(tx*samples+excluded.tx)/(samples+1),
                 rx_bytes=rx_bytes+excluded.rx_bytes, tx_bytes=tx_bytes+excluded.tx_bytes,
                 samples=samples+1''', values)
-            db.execute('DELETE FROM history WHERE bucket < ?', (time.time()-RETENTION,))
+            db.execute('DELETE FROM history WHERE bucket < ?', (time.time()-self.retention,))
 
     def mirror(self, host, records):
         with self.connect() as db:
             for r in records:
                 db.execute('INSERT OR REPLACE INTO history VALUES (?,?,?,?,?,?,?,?,?,?)',
                            (host, *(r[k] for k in ('bucket','cpu','memory','gpu','rx','tx','rx_bytes','tx_bytes','samples'))))
-            db.execute('DELETE FROM history WHERE bucket < ?', (time.time()-RETENTION,))
+            db.execute('DELETE FROM history WHERE bucket < ?', (time.time()-self.retention,))
 
     def read(self, host, since, limit=30000):
         with self.connect() as db:
             return [dict(r) for r in db.execute(
                 'SELECT * FROM history WHERE host=? AND bucket>=? ORDER BY bucket LIMIT ?',
-                (host, max(since, time.time()-RETENTION), limit))]
+                (host, max(since, time.time()-self.retention), limit))]

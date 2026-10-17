@@ -47,7 +47,7 @@ input:focus {
   color: #8a8c93;
 }
 .eyebrow {
-  font-size: 10px;
+  font-size: 12px;
   letter-spacing: 0.1em;
   font-weight: 600;
   text-transform: uppercase;
@@ -58,7 +58,7 @@ input:focus {
 }
 .recharts-cartesian-axis-tick-value {
   fill: #9699a2;
-  font-size: 10px;
+  font-size: 12px;
 }
 .recharts-tooltip-wrapper {
   outline: none;
