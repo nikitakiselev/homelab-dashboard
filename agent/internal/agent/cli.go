@@ -22,17 +22,18 @@ import (
 const help = `homelab-agent — Linux server metrics
 
 Usage: homelab-agent <command> [options]
-  version       Show agent version
-  init          Create YAML and token without overwriting existing files
-  run           Run the collector and authenticated HTTP API
-  status        Show systemd state and check the local API
-  start         Start the installed service
-  restart       Restart the installed service
-  stop          Stop the installed service
-  logs          Show service logs (add --follow for live output)
-  check-config  Validate YAML without starting the agent
-  doctor        Check platform, configuration and hardware utilities
-  upgrade       Download, verify and activate the latest release; roll back on failure
+  version          Show agent version
+  init             Create YAML and token without overwriting existing files
+  run              Run the collector and authenticated HTTP API
+  status           Show systemd state and check the local API
+  connection-info  Show IP addresses, port and token for the dashboard
+  start            Start the installed service
+  restart          Restart the installed service
+  stop             Stop the installed service
+  logs             Show service logs (add --follow for live output)
+  check-config     Validate YAML without starting the agent
+  doctor           Check platform, configuration and hardware utilities
+  upgrade          Download, verify and activate the latest release; roll back on failure
 
 Common options: --config /etc/homelab/agent.yaml --env /etc/homelab/agent.env
 Run options: --bind ADDRESS --port PORT --data SQLITE_PATH
@@ -100,7 +101,7 @@ func CLI(args []string) error {
 		return showInstallationSummary(*config, *env)
 	case "upgrade":
 		return Upgrade(*version, *config, *env)
-	case "run", "check-config", "status", "doctor":
+	case "run", "check-config", "status", "doctor", "connection-info":
 	default:
 		return fmt.Errorf("unknown command %q; use homelab-agent --help", cmd)
 	}
@@ -131,6 +132,8 @@ func CLI(args []string) error {
 		return err
 	}
 	switch cmd {
+	case "connection-info":
+		return showConnectionInfo(os.Stdout, c, *env)
 	case "check-config":
 		raw, _ := yaml.Marshal(c)
 		fmt.Print(string(raw))

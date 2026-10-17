@@ -57,10 +57,13 @@ func connectionAddresses(bind string) []string {
 }
 
 func installationSummary(w io.Writer, version, hostname string, addresses []string, port int, token string) {
+	connectionSummary(w, []string{"homelab-agent " + version + " installed successfully", "Service is running · API verified"}, hostname, addresses, port, token)
+}
+func connectionSummary(w io.Writer, header []string, hostname string, addresses []string, port int, token string) {
 	if hostname == "" {
 		hostname = "unknown"
 	}
-	lines := []string{"homelab-agent " + version + " installed successfully", "Service is running · API verified", "", "Hostname:   " + hostname}
+	lines := append(header, "", "Hostname:   "+hostname)
 	if len(addresses) == 0 {
 		lines = append(lines, "IP address: Not detected")
 	} else {
@@ -97,5 +100,17 @@ func showInstallationSummary(config, env string) error {
 		return err
 	}
 	installationSummary(os.Stdout, m.AgentVersion, m.Hostname, connectionAddresses(c.Server.Bind), c.Server.Port, token)
+	return nil
+}
+
+// Reads stored credentials only, so the details stay available while the
+// service is stopped or failing.
+func showConnectionInfo(w io.Writer, c Config, env string) error {
+	token, err := readToken(env)
+	if err != nil {
+		return err
+	}
+	hostname, _ := os.Hostname()
+	connectionSummary(w, []string{"homelab-agent connection details"}, hostname, connectionAddresses(c.Server.Bind), c.Server.Port, token)
 	return nil
 }

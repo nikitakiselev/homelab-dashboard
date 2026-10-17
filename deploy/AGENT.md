@@ -24,6 +24,7 @@ sudo sh deploy/install_agent.sh
 homelab-agent version
 sudo homelab-agent init
 sudo homelab-agent status
+sudo homelab-agent connection-info
 sudo homelab-agent start
 sudo homelab-agent restart
 sudo homelab-agent stop
@@ -33,7 +34,7 @@ sudo homelab-agent doctor
 sudo homelab-agent upgrade
 ```
 
-`init` создаёт `/etc/homelab/agent.yaml` и `/etc/homelab/agent.env`, сохраняя существующие файлы. `status` проверяет systemd и авторизованный API на порту из YAML. `check-config` проверяет YAML без запуска. `doctor` показывает доступность системных утилит. Ручной запуск: `sudo homelab-agent run`.
+`init` создаёт `/etc/homelab/agent.yaml` и `/etc/homelab/agent.env`, сохраняя существующие файлы. `status` проверяет systemd и авторизованный API на порту из YAML. `connection-info` повторно показывает hostname, IP-адреса, порт и токен для добавления в дашборд; API не опрашивается, поэтому команда работает и при остановленной службе. `check-config` проверяет YAML без запуска. `doctor` показывает доступность системных утилит. Ручной запуск: `sudo homelab-agent run`.
 
 `upgrade` сначала показывает `Current version` и `Available version`. Если версии совпадают, выводится `Already up to date`: бинарник не скачивается, служба не перезапускается. Если версии различаются, команда показывает переход `Updating agent: старая -> новая`, скачивает файлы именно выбранного релиза, проверяет SHA-256 и версию бинарника, затем заменяет файл и перезапускает службу. Успех подтверждается строкой `Agent updated: старая -> новая`. Ошибка проверки доступной версии не считается отсутствием обновлений. При ошибке API восстанавливаются предыдущие бинарник и systemd-unit. Конфигурация, токен и SQLite сохраняются. Для конкретной версии: `sudo homelab-agent upgrade --version agent-v0.3.0`. Параллельные установки блокируются.
 
@@ -51,7 +52,7 @@ server:
 
 После установки итоговый блок показывает hostname, IP-адреса, порт из YAML и токен для добавления в дашборд. При `upgrade` токен не выводится.
 
-Токен хранится отдельно с правами 0600: `sudo cat /etc/homelab/agent.env`. В дашборде нажмите «Добавить сервер», укажите частный IP, порт и значение `HOMELAB_AGENT_TOKEN`. Firewall должен разрешать этот порт только от IP центрального сервиса.
+Если итоговый блок потерян, выполните `sudo homelab-agent connection-info`. Команда есть в агенте с версии 0.3.3; более старый агент обновите через `sudo homelab-agent upgrade`. Токен хранится отдельно с правами 0600: `sudo cat /etc/homelab/agent.env`. В дашборде нажмите «Добавить сервер», укажите частный IP, порт и значение `HOMELAB_AGENT_TOKEN`. Firewall должен разрешать этот порт только от IP центрального сервиса.
 
 По умолчанию CPU/память/сеть и счётчики чтения/записи дисков из `/proc/diskstats` снимаются раз в 5 секунд, NVMe SMART — раз в минуту; для ATA/SATA/USB/SAS автоматический SMART отключён. HDD собираются пассивно; если на хосте есть HDD, заполнение файловых систем автоматически не запрашивается. Базу истории размещайте на SSD, иначе её записи могут мешать сну HDD. GPU и SMART опрашиваются отдельно от основных метрик. YAML управляет интервалами, интерфейсами и сроком хранения. SQLite по умолчанию: `/var/lib/homelab-agent/agent.sqlite`; история хранится 90 дней. Агент продолжает сбор без центрального сервиса, после подключения история догружается.
 

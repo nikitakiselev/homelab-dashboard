@@ -1616,6 +1616,13 @@ function AddServer({
                   {copied ? <CheckCheck size={16} /> : <Copy size={16} />}
                 </button>
               </div>
+              <p className="mt-3 border-t border-zinc-200 pt-3 text-sm leading-6 text-muted-foreground">
+                После установки агент покажет IP-адрес, порт и токен. Показать
+                их снова:{" "}
+                <code className="select-all break-all font-mono text-zinc-700">
+                  sudo homelab-agent connection-info
+                </code>
+              </p>
             </div>
           </form>
         </DrawerBody>

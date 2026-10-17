@@ -145,6 +145,32 @@ func TestExplicitInvalidPortOverride(t *testing.T) {
 	}
 }
 
+func TestConnectionInfoShowsStoredTokenWithoutQueryingService(t *testing.T) {
+	t.Setenv("HOMELAB_AGENT_TOKEN", "")
+	dir := t.TempDir()
+	config := filepath.Join(dir, "agent.yaml")
+	env := filepath.Join(dir, "agent.env")
+	token := "stored-connection-test-token-0123456789"
+	os.WriteFile(config, []byte("server:\n  bind: 127.0.0.1\n  port: 19108\n"), 0600)
+	os.WriteFile(env, []byte("HOMELAB_AGENT_TOKEN="+token+"\n"), 0600)
+	c, err := LoadConfig(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out strings.Builder
+	if err = showConnectionInfo(&out, c, env); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"IP address: 127.0.0.1", "Port:       19108", "Token:      " + token} {
+		if !strings.Contains(out.String(), want) {
+			t.Fatalf("missing %q in output:\n%s", want, out.String())
+		}
+	}
+	if strings.Contains(out.String(), "installed successfully") {
+		t.Fatalf("connection info claims an installation:\n%s", out.String())
+	}
+}
+
 func TestSMARTConfigRequiresExplicitScopeAndDailyBudget(t *testing.T) {
 	for _, raw := range []string{
 		"smart: null", "smart: {enabled: 'true'}", "smart: {enabled: true}",
