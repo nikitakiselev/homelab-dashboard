@@ -99,7 +99,6 @@ function App({ view }: { view: View }) {
   const [search, setSearch] = useState(""),
     [selected, setSelected] = useState<string | null>(null),
     [add, setAdd] = useState(false),
-    [help, setHelp] = useState(false),
     [period, setPeriod] = useState<1 | 90>(1),
     [history, setHistory] = useState<Point[]>([]),
     [historyLoading, setHistoryLoading] = useState(false),
@@ -263,40 +262,22 @@ function App({ view }: { view: View }) {
             </Link>
           ))}
         </nav>
-        <div className="mt-auto">
-          <button
-            onClick={() => setHelp(true)}
-            className="flex items-center gap-2.5 px-3 py-2 text-sm text-muted-foreground hover:text-zinc-800 cursor-pointer"
-          >
-            <CircleHelp size={16} />
-            Как это работает
-            <ArrowUpRight size={12} />
-          </button>
-          <div className="mt-4 flex items-center gap-2.5 border-t border-black/5 px-2 pt-5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#dce4ec] text-[12px] font-semibold text-slate-700">
-              HL
-            </div>
-            <div>
-              <div className="text-sm font-medium">Homelab</div>
-              <div className="mt-0.5 text-[12px] text-muted-foreground">
-                Локальный мониторинг
-              </div>
-            </div>
-            {token && (
-              <button
-                aria-label="Выйти"
-                onClick={() => {
-                  sessionStorage.removeItem("homelab-token");
-                  setToken("");
-                  setAuth(true);
-                }}
-                className="ml-auto text-muted-foreground"
-              >
-                <LogOut size={14} />
-              </button>
-            )}
+        {token && (
+          <div className="mt-auto pt-6">
+            <Button
+              variant="ghost"
+              className="w-full justify-start text-muted-foreground"
+              onClick={() => {
+                sessionStorage.removeItem("homelab-token");
+                setToken("");
+                setAuth(true);
+              }}
+            >
+              <LogOut size={16} className="shrink-0" />
+              Выйти
+            </Button>
           </div>
-        </div>
+        )}
       </aside>
       <main className="min-w-0 flex-1 lg:ml-[218px]">
         <header className="flex h-[70px] items-center justify-between gap-4 border-b border-black/[0.05] bg-white/60 px-5 lg:px-9">
@@ -947,41 +928,6 @@ function App({ view }: { view: View }) {
           load();
         }}
       />
-      <Dialog open={help} onOpenChange={setHelp}>
-        <DialogContent>
-          <DialogTitle className="text-xl font-semibold tracking-tight">
-            Сбор и хранение метрик
-          </DialogTitle>
-          <DialogDescription className="mt-3 text-sm leading-6 text-muted-foreground">
-            Агент на каждом Linux-сервере собирает метрики и хранит историю 90
-            дней. Центральный сервис опрашивает его каждые 10 секунд и догружает
-            историю после отключений.
-          </DialogDescription>
-          <div className="mt-6 space-y-4 text-sm text-muted-foreground">
-            <p>
-              <strong className="text-zinc-800">1. Установите агент</strong>
-              <br />
-              Инструкция и systemd-сервисы находятся в README проекта.
-            </p>
-            <p>
-              <strong className="text-zinc-800">2. Подключите сервер</strong>
-              <br />
-              Введите IP, порт 9108 и уникальный токен агента.
-            </p>
-            <p>
-              <strong className="text-zinc-800">3. Наблюдайте</strong>
-              <br />
-              CPU, память, GPU при поддержке драйвера, диски и сетевой трафик.
-              SMART требует smartmontools и прав на чтение дисков.
-            </p>
-            <p className="rounded-xl bg-zinc-50 p-3 text-sm leading-5">
-              Графики усредняются по 5 минутам, за 90 дней — по 6 часам.
-              Скорость указана в байтах в секунду. На сетевых мостах счётчики
-              могут дублироваться: задайте интерфейсы через HOMELAB_INTERFACES.
-            </p>
-          </div>
-        </DialogContent>
-      </Dialog>
       <Dialog open={auth} onOpenChange={() => {}}>
         <DialogContent>
           <DialogTitle className="text-xl font-semibold">
