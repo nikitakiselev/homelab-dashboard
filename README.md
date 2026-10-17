@@ -14,8 +14,8 @@ A dashboard for monitoring home servers: CPU, GPU, memory, storage, SMART health
 - Standalone Go agents for Linux x86_64/ARM64; no Python or Go toolchain needed on agent hosts.
 - Connect additional Linux hosts using an IP address and token.
 - CPU, memory, supported GPUs, uptime, and host availability.
-- HDD/SSD/NVMe capacity, used space, temperature, and SMART health.
-- Network receive/transmit rates and charts covering 24 hours or 90 days.
+- HDD/SSD/NVMe capacity and disk I/O history; passive HDD monitoring, with automatic SMART only for NVMe. HDD temperature and filesystem usage may be unavailable or stale.
+- Dedicated server pages with CPU, memory, GPU, network, and disk I/O history for 24 hours, 7 days, 30 days, or 90 days.
 - Agents retain history locally and synchronize it after the central service reconnects.
 - YAML configuration for collection intervals, network interfaces, and history retention.
 

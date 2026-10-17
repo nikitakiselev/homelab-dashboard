@@ -54,7 +54,15 @@ export type GPU = {
   memory_total: number | null;
   temperature: number | null;
 };
+export type DiskIO = {
+  read_bytes: number;
+  write_bytes: number;
+  read_ops: number;
+  write_ops: number;
+  seconds: number;
+};
 export type Metrics = {
+  disk_io?: Record<string, DiskIO>;
   agent_version?: string;
   diagnostics?: Record<string, string>;
   timestamp: number;
@@ -81,11 +89,13 @@ export type Host = {
   history_error?: string;
 };
 export type Point = {
+  disk_io?: Record<string, DiskIO>;
   bucket: number;
-  cpu: number;
-  memory: number;
-  rx: number;
-  tx: number;
+  cpu: number | null;
+  memory: number | null;
+  gpu: number | null;
+  rx: number | null;
+  tx: number | null;
   rx_bytes: number;
   tx_bytes: number;
 };

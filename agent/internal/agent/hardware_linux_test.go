@@ -5,7 +5,6 @@ package agent
 import (
 	"context"
 	"fmt"
-	"reflect"
 	"testing"
 )
 
@@ -56,40 +55,41 @@ func TestSMARTDetailsIncludeZeroValues(t *testing.T) {
 	}
 }
 
-func TestSleepingAndUnsafeDisksSkipFilesystemIO(t *testing.T) {
-	// A real mount makes stat/statfs observable: refreshing it would replace the
-	// cached volume and timestamp.
-	for _, transport := range []string{"sata", "usb", "sas", ""} {
-		calls := 0
-		run := func(ctx context.Context, args ...string) ([]byte, error) {
-			calls++
-			if args[0] == "lsblk" {
+func TestATADisksNeverReceiveCommandsOrFilesystemProbes(t *testing.T) {
+	for _, transport := range []string{"sata", "ata", "usb", "sas", ""} {
+		for _, power := range []string{"active", "standby", "unknown"} {
+			calls := 0
+			run := func(ctx context.Context, args ...string) ([]byte, error) {
+				calls++
+				if args[0] != "lsblk" {
+					t.Fatalf("device command in passive collection: %v", args)
+				}
 				return []byte(fmt.Sprintf(`{"blockdevices":[{"name":"sdb","type":"disk","size":1000,"model":"Test","serial":"DISK-1","rota":true,"tran":%q,"mountpoints":["/"]}]}`, transport)), nil
 			}
-			want := []string{"smartctl", "-a", "-j", "-d", "ata", "-n", "standby,75,76", "/dev/sdb"}
-			if !reflect.DeepEqual(args, want) {
-				t.Fatalf("unsafe command: %v", args)
+			old := Disk{Name: "sda", Model: "Test", Serial: "DISK-1", Type: "HDD", Total: 1000, Used: 600, Health: "warning", Temperature: ptr(32), SMARTUpdatedAt: ptr(100), UsageUpdatedAt: ptr(100), PowerState: power, Volumes: []Volume{{"/cached", 1000, 600}}}
+			previous := []Disk{old}
+			for range 65 {
+				result, err := readDisks(context.Background(), previous, run)
+				if err != nil || len(result) != 1 {
+					t.Fatalf("%v %v", result, err)
+				}
+				d := result[0]
+				if d.SMARTState != "passive" || d.PowerState != "unknown" || d.Used != 600 || *d.UsageUpdatedAt != 100 || *d.SMARTUpdatedAt != 100 || len(d.Volumes) != 1 || d.Volumes[0].Mount != "/cached" || d.Health != "warning" || *d.Temperature != 32 {
+					t.Fatalf("cached data changed: %+v", d)
+				}
+				previous = result
 			}
-			return []byte(`{"smartctl":{"exit_status":75}}`), fmt.Errorf("exit status 75")
-		}
-		old := Disk{Name: "sda", Model: "Test", Serial: "DISK-1", Type: "HDD", Total: 1000, Used: 600, Health: "warning", Temperature: ptr(32), SMARTUpdatedAt: ptr(100), UsageUpdatedAt: ptr(100), Volumes: []Volume{{"/cached", 1000, 600}}}
-		result, err := readDisks(context.Background(), []Disk{old}, run)
-		if err != nil || len(result) != 1 {
-			t.Fatalf("%v: %v", result, err)
-		}
-		d := result[0]
-		if d.Used != 600 || *d.UsageUpdatedAt != 100 || len(d.Volumes) != 1 || d.Volumes[0].Mount != "/cached" {
-			t.Fatalf("filesystem was refreshed: %+v", d)
-		}
-		if d.Name != "sdb" || d.Health != "warning" || *d.Temperature != 32 {
-			t.Fatalf("cache: %+v", d)
-		}
-		if transport == "sata" {
-			if calls != 2 || d.SMARTState != "sleeping" {
-				t.Fatalf("SATA: %+v, %d calls", d, calls)
+			if calls != 65 {
+				t.Fatalf("unexpected command count: %d", calls)
 			}
-		} else if calls != 1 || d.SMARTState != "skipped" {
-			t.Fatalf("unsafe transport: %+v, %d calls", d, calls)
+		}
+	}
+}
+
+func TestATACommandsDisabledEvenForSSD(t *testing.T) {
+	for _, transport := range []string{"sata", "ata", "usb", "sas", ""} {
+		if args := diskSMARTArgs("sda", transport); args != nil {
+			t.Fatalf("ATA command generated: %v", args)
 		}
 	}
 }
@@ -109,6 +109,28 @@ func TestReplacedDiskDoesNotInheritCache(t *testing.T) {
 		d := result[0]
 		if d.Health != "unknown" || d.Used != 0 || d.SMARTUpdatedAt != nil || d.UsageUpdatedAt != nil {
 			t.Fatalf("old drive's data leaked: %+v", d)
+		}
+	}
+}
+
+func TestMixedOrUnknownStorageSkipsNVMeFilesystemProbes(t *testing.T) {
+	for _, rota := range []string{"true", "null"} {
+		run := func(ctx context.Context, args ...string) ([]byte, error) {
+			if args[0] == "lsblk" {
+				return []byte(fmt.Sprintf(`{"blockdevices":[{"name":"sda","type":"disk","size":1000,"rota":%s,"tran":"sata","mountpoints":["/"]},{"name":"nvme0n1","type":"disk","size":2000,"rota":false,"serial":"SSD-1","model":"SSD","mountpoints":["/"]}]}`, rota)), nil
+			}
+			if args[0] != "smartctl" || args[len(args)-1] != "/dev/nvme0n1" {
+				t.Fatalf("unexpected command: %v", args)
+			}
+			return []byte(`{"smart_status":{"passed":true}}`), nil
+		}
+		old := Disk{Name: "nvme0n1", Model: "SSD", Serial: "SSD-1", Type: "NVMe", Total: 2000, Used: 100, UsageUpdatedAt: ptr(100), Volumes: []Volume{{"/cached", 2000, 100}}}
+		found, err := readDisks(context.Background(), []Disk{old}, run)
+		if err != nil || len(found) != 2 {
+			t.Fatalf("%v %v", found, err)
+		}
+		if d := found[1]; d.Used != 100 || *d.UsageUpdatedAt != 100 || len(d.Volumes) != 1 || d.Volumes[0].Mount != "/cached" {
+			t.Fatalf("filesystem probe on mixed storage: %+v", d)
 		}
 	}
 }

@@ -90,7 +90,15 @@ func Handler(c Config, token string, collector snapshotter, h *History) http.Han
 				http.Error(w, "History unavailable", 500)
 				return
 			}
-			value = map[string]any{"records": records}
+			more := false
+			if len(records) > 0 {
+				more, err = h.hasMore(m.AgentID, records[len(records)-1]["bucket"].(int64))
+				if err != nil {
+					http.Error(w, "History unavailable", 500)
+					return
+				}
+			}
+			value = map[string]any{"records": records, "has_more": more}
 		default:
 			http.NotFound(w, r)
 			return

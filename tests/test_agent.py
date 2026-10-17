@@ -61,66 +61,68 @@ class CollectorTests(unittest.TestCase):
             with self.subTest(expected=expected),patch('homelab.server.collectors.linux.shutil.which',return_value='/usr/sbin/smartctl'),patch('homelab.server.collectors.linux.command',side_effect=lambda args:json.dumps(block if args[0]=='lsblk' else smart)):
                 self.assertEqual(disks()[0]['health'],expected)
 
-    def test_sleep_retains_sample_without_touching_filesystem_and_wakes_naturally(self):
-        block = {'blockdevices':[{'name':'sdb','type':'disk','size':1000,'model':'Test',
-                  'serial':'DISK-1','tran':'sata','rota':True,'mountpoints':['/data']}]}
-        smart = {'smart_status':{'passed':True}, 'temperature':{'current':32},
-                 'power_on_time':{'hours':1500}, 'power_cycle_count':12,
-                 'ata_smart_attributes':{'table':[{'id':197,'raw':{'value':2}}]}}
-        def run(args):
-            if args[0] == 'lsblk': return json.dumps(block)
-            self.assertEqual(args, ['smartctl','-a','-j','-d','ata','-n','standby,75,76','/dev/sdb'])
-            return json.dumps(smart)
-        with patch('homelab.server.collectors.linux.command',side_effect=run), patch('homelab.server.collectors.linux.shutil.which',return_value='smartctl'), patch('homelab.server.collectors.linux.os.stat') as stat, patch('homelab.server.collectors.linux.shutil.disk_usage') as usage:
-            stat.return_value.st_dev = 42
-            usage.return_value.total, usage.return_value.used = 1000, 600
-            active = disks()
-            self.assertEqual(active[0]['pending_sectors'], 2)
-            self.assertEqual(active[0]['power_on_hours'], 1500)
-            self.assertEqual(active[0]['smart_state'], 'fresh')
-            for mode in ('STANDBY', 'SLEEP'):
-                smart = {'smartctl':{'exit_status':75}, 'power_mode':{'name':mode}}
-                stat.reset_mock(); usage.reset_mock()
-                asleep = disks(active)
-                stat.assert_not_called(); usage.assert_not_called()
-                self.assertEqual(asleep[0]['smart_state'], 'sleeping')
-                self.assertEqual(asleep[0]['power_state'], mode.lower())
-                for key in ('smart_updated_at','usage_updated_at','health','warning','temperature','used','volumes'):
-                    self.assertEqual(asleep[0][key], active[0][key])
-                self.assertEqual(active[0]['smart_state'], 'fresh')
-            smart = {'smart_status':{'passed':True},'temperature':{'current':35}}
-            awake = disks(asleep)[0]
-            self.assertEqual(awake['power_state'], 'active')
-            self.assertEqual(awake['temperature'], 35)
-            self.assertEqual(awake['health'], 'healthy')
-            self.assertIsNone(awake['warning'])
-            usage.assert_called_once_with('/data')
+    def test_hdd_polling_is_passive_even_with_cached_active_state(self):
+        for transport in ('sata','ata','usb','sas',None):
+            for power in ('active','standby','unknown'):
+                block={'blockdevices':[{'name':'sdb','type':'disk','size':1000,'model':'Test',
+                       'serial':'DISK-1','tran':transport,'rota':True,'mountpoints':['/data']}]}
+                old={'name':'sda','model':'Test','serial':'DISK-1','type':'HDD','total':1000,'used':600,
+                     'volumes':[{'mount':'/cached','total':1000,'used':600}],'health':'warning',
+                     'temperature':32,'warning':'Preserved warning','smart_updated_at':100,'usage_updated_at':100,
+                     'power_state':power,'smart_state':'fresh'}
+                with self.subTest(transport=transport,power=power), \
+                     patch('homelab.server.collectors.linux.command',return_value=json.dumps(block)) as run, \
+                     patch('homelab.server.collectors.linux.os.stat') as stat, \
+                     patch('homelab.server.collectors.linux.shutil.disk_usage') as usage:
+                    previous=[old]
+                    for _ in range(65):
+                        previous=disks(previous)
+                        d=previous[0]
+                        self.assertEqual(d['smart_state'],'passive')
+                        self.assertEqual(d['power_state'],'unknown')
+                        for key in ('smart_updated_at','usage_updated_at','health','warning','temperature','used','volumes'):
+                            self.assertEqual(d[key],old[key])
+                    self.assertEqual(run.call_count,65)
+                    self.assertTrue(all(call.args[0][0]=='lsblk' for call in run.call_args_list))
+                    stat.assert_not_called()
+                    usage.assert_not_called()
 
-    def test_sleep_on_first_poll_and_errors_do_not_probe_hdd_filesystems(self):
-        block = {'blockdevices':[{'name':'sda','type':'disk','size':1000,'model':'Test',
-                  'serial':'NEW','tran':'sata','rota':True,'mountpoints':['/data']}]}
-        old = {'name':'sda','model':'Test','serial':'OLD','total':1000,'used':999}
-        for smart, expected in [({'smartctl':{'exit_status':75}},'sleeping'),
-                                ({'smartctl':{'exit_status':76}},'unsupported'),
-                                ({'smartctl':{'exit_status':2}},'unavailable'),
-                                ({},'unavailable')]:
-            with self.subTest(expected=expected), patch('homelab.server.collectors.linux.command',side_effect=lambda args:json.dumps(block if args[0]=='lsblk' else smart)), patch('homelab.server.collectors.linux.shutil.which',return_value='smartctl'), patch('homelab.server.collectors.linux.os.stat') as stat, patch('homelab.server.collectors.linux.shutil.disk_usage') as usage:
-                disk = disks([old])[0]
-                self.assertEqual(disk['smart_state'], expected)
-                self.assertEqual(disk['health'], 'unknown')
-                self.assertEqual(disk['used'], 0)
-                self.assertNotIn('smart_updated_at', disk)
-                stat.assert_not_called(); usage.assert_not_called()
-
-    def test_unsafe_transports_skip_smart_and_hdd_filesystems(self):
-        for transport in ('usb', 'sas', None):
-            block = {'blockdevices':[{'name':'sda','type':'disk','size':1000,'model':'Test',
-                      'tran':transport,'rota':True,'mountpoints':['/data']}]}
-            with self.subTest(transport=transport), patch('homelab.server.collectors.linux.command',return_value=json.dumps(block)) as run, patch('homelab.server.collectors.linux.os.stat') as stat:
-                disk = disks()[0]
-                self.assertEqual(disk['smart_state'], 'skipped')
-                self.assertEqual(run.call_count, 1)
+    def test_new_or_replaced_hdd_has_no_fabricated_smart_or_usage(self):
+        for serial in ('NEW',None):
+            block={'blockdevices':[{'name':'sda','type':'disk','size':1000,'model':'Test',
+                   'serial':serial,'tran':'sata','rota':True,'mountpoints':['/data']}]}
+            old={'name':'sda','model':'Test','serial':'OLD','total':1000,'used':999}
+            with patch('homelab.server.collectors.linux.command',return_value=json.dumps(block)) as run, \
+                 patch('homelab.server.collectors.linux.os.stat') as stat:
+                disk=disks([old])[0]
+                self.assertEqual(disk['smart_state'],'passive')
+                self.assertEqual(disk['health'],'unknown')
+                self.assertNotIn('smart_updated_at',disk)
+                self.assertEqual(disk['used'],0)
+                self.assertEqual(run.call_count,1)
                 stat.assert_not_called()
+
+    def test_shared_storage_skips_filesystem_probes_even_beneath_nvme(self):
+        for rotational in (True,None):
+            block={'blockdevices':[
+                {'name':'sda','type':'disk','size':1000,'model':'HDD','rota':rotational,'tran':'sata','mountpoints':['/shared']},
+                {'name':'nvme0n1','type':'disk','size':2000,'model':'SSD','rota':False,'serial':'SSD-1','mountpoints':['/shared']}]}
+            old={'name':'nvme0n1','model':'SSD','serial':'SSD-1','firmware':'','type':'NVMe','total':2000,
+                 'used':100,'volumes':[{'mount':'/cached','total':2000,'used':100}],'usage_updated_at':100}
+            def run(args):
+                if args[0]=='lsblk': return json.dumps(block)
+                self.assertEqual(args,['smartctl','-a','-j','-d','nvme','/dev/nvme0n1'])
+                return json.dumps({'smart_status':{'passed':True}})
+            with patch('homelab.server.collectors.linux.command',side_effect=run), \
+                 patch('homelab.server.collectors.linux.shutil.which',return_value='smartctl'), \
+                 patch('homelab.server.collectors.linux.os.stat') as stat, \
+                 patch('homelab.server.collectors.linux.shutil.disk_usage') as usage:
+                found=disks([old])
+                self.assertEqual(found[1]['used'],100)
+                self.assertEqual(found[1]['usage_updated_at'],100)
+                self.assertEqual(found[1]['volumes'],old['volumes'])
+                stat.assert_not_called()
+                usage.assert_not_called()
 
     def test_nvme_details_and_zero_values(self):
         block = {'blockdevices':[{'name':'nvme0n1','type':'disk','size':1000,'rota':False}]}

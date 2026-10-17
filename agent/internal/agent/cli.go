@@ -136,6 +136,7 @@ func CLI(args []string) error {
 		fmt.Print(string(raw))
 		return nil
 	case "doctor":
+		fmt.Printf("History database: %s\nHDD collection: passive (no SMART/power commands or HDD filesystem probes)\nHistory storage: use an SSD to avoid keeping an HDD awake with database writes\n", c.History.Path)
 		fmt.Printf("Platform: %s/%s\nConfig: OK\nPort: %s:%d\n", runtime.GOOS, runtime.GOARCH, c.Server.Bind, c.Server.Port)
 		for _, name := range []string{"systemctl", "lsblk", "smartctl", "nvidia-smi", "intel_gpu_top"} {
 			path, err := exec.LookPath(name)

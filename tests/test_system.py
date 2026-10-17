@@ -116,6 +116,74 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(row['rx_bytes'],400)
         self.assertEqual(row['tx_bytes'],600)
 
+    def test_sync_continues_short_pages_with_disk_history(self):
+        with patch.object(self.dashboard,'poll'):
+            hid=self.add()['id']
+        row=self.agent_history.read(self.metrics['agent_id'],0)[0]
+        first={**row,'bucket':row['bucket']-600}
+        second={**row,'bucket':row['bucket']-300}
+        pages=iter([{'records':[first],'has_more':True},{'records':[second],'has_more':False}])
+        def reply(ip,port,token,path):
+            return next(pages) if path.startswith('/v1/history') else self.metrics
+        with patch('homelab.server.app.agent_get',side_effect=reply):
+            self.dashboard.poll()
+        rows=self.dashboard.history.read(hid,0)
+        self.assertEqual(len(rows),2)
+        self.assertEqual(rows[0]['disk_io'],row['disk_io'])
+        self.assertEqual(rows[1]['disk_io'],row['disk_io'])
+        self.dashboard.delete(hid)
+        with self.dashboard.history.connect() as db:
+            self.assertEqual(db.execute('SELECT count(*) FROM disk_history').fetchone()[0],0)
+
+    def test_chart_periods_keep_nullable_metrics_and_traffic(self):
+        # Two buckets in one six-hour interval, with different sample counts.
+        bucket=int(time.time()-86400)//21600*21600
+        rows=[dict(bucket=bucket,cpu=10,memory=20,gpu=None,rx=100,tx=200,
+                   rx_bytes=1000,tx_bytes=2000,samples=1),
+              dict(bucket=bucket+300,cpu=30,memory=40,gpu=60,rx=300,tx=400,
+                   rx_bytes=3000,tx_bytes=4000,samples=3),
+              dict(bucket=bucket+21600,cpu=None,memory=50,gpu=None,rx=0,tx=0,
+                   rx_bytes=0,tx_bytes=0,samples=1)]
+        self.dashboard.history.mirror('test',rows)
+        for days in (7,30,90):
+            with self.subTest(days=days):
+                result=self.dashboard.chart('test',days)
+                self.assertEqual(len(result),2)
+                self.assertEqual(result[0]['cpu'],25)
+                self.assertEqual(result[0]['memory'],35)
+                self.assertEqual(result[0]['gpu'],60)
+                self.assertEqual(result[0]['rx'],250)
+                self.assertEqual(result[0]['rx_bytes'],4000)
+                self.assertEqual(result[0]['tx_bytes'],6000)
+                self.assertIsNone(result[1]['cpu'])
+                self.assertIsNone(result[1]['gpu'])
+        with patch('homelab.server.app.time.time',return_value=bucket+22000):
+            self.assertEqual(len(self.dashboard.chart('test',1)),3)
+
+    def test_demo_gpu_history(self):
+        dashboard=Dashboard(self.path,demo=True)
+        for days in (1,7,30,90):
+            with self.subTest(days=days):
+                self.assertTrue(all(0<=p['gpu']<=100 for p in dashboard.chart('demo-1',days)))
+                self.assertTrue(all(p['gpu'] is None for p in dashboard.chart('demo-0',days)))
+
+    def test_history_api_periods_and_server_page_fallback(self):
+        (Path(self.tmp.name)/'index.html').write_text('<html>dashboard</html>')
+        api=ThreadingHTTPServer(('127.0.0.1',0),handler(self.dashboard,TOKEN,Path(self.tmp.name)))
+        threading.Thread(target=api.serve_forever,daemon=True).start()
+        base=f'http://127.0.0.1:{api.server_port}'
+        try:
+            for days in (1,7,30,90):
+                with urlopen(Request(base+f'/api/history/test?days={days}',headers={'Authorization':'Bearer '+TOKEN})) as r:
+                    self.assertEqual(json.load(r),{'records':[]})
+            with self.assertRaises(HTTPError) as err:
+                urlopen(Request(base+'/api/history/test?days=14',headers={'Authorization':'Bearer '+TOKEN}))
+            self.assertEqual(err.exception.code,400)
+            err.exception.close()
+            with urlopen(base+'/servers/test') as r:
+                self.assertEqual(r.read(),b'<html>dashboard</html>')
+        finally: api.shutdown();api.server_close()
+
     def test_api_auth_and_origin(self):
         api=ThreadingHTTPServer(('127.0.0.1',0),handler(self.dashboard,TOKEN,Path(self.tmp.name)))
         threading.Thread(target=api.serve_forever,daemon=True).start()

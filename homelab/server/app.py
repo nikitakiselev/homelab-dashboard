@@ -16,7 +16,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
 from urllib.request import Request, build_opener, HTTPRedirectHandler, ProxyHandler
-from ..shared.storage import History, RETENTION
+from ..shared.storage import History, RETENTION, merge_disk_io
 from .bundle import agent_archive
 from .collectors import create_collector
 from ..shared.config import load_config
@@ -56,6 +56,13 @@ def validate_metrics(m):
     return m
 
 
+def demo_disk_io(disks, timestamp, seconds):
+    return {d['name']:dict(read_bytes=(i+1)*2**20*(1+.4*math.sin(timestamp/1900+i))*seconds,
+                          write_bytes=(i+1)*2**18*(1+.3*math.cos(timestamp/1700+i))*seconds,
+                          read_ops=round((30+i*10)*seconds),write_ops=round((12+i*5)*seconds),seconds=seconds)
+            for i,d in enumerate(disks)}
+
+
 def demo_metrics(index):
     now = time.time()
     specs = [('pve-atlas','Proxmox','Intel Core i5-12500',12,32,[(1000,'NVMe'),(4000,'HDD')]),
@@ -84,7 +91,7 @@ def demo_metrics(index):
             'volumes':[{'mount':'/' if i==0 else '/mnt/data','total':total,'used':used}],
             'health':'warning' if index==3 and i==1 else 'healthy','temperature':32+i*3,
             'warning':'Обнаружены переназначенные секторы' if index==3 and i==1 else None})
-    return {'timestamp':now,'agent_id':f'demo-{index}','hostname':name,'platform':kind,
+    return {'disk_io':demo_disk_io(disks,now,5),'timestamp':now,'agent_id':f'demo-{index}','hostname':name,'platform':kind,
         'os':'Proxmox VE 8.4' if kind=='Proxmox' else 'Ubuntu 24.04 LTS',
         'cpu':{'usage':cpu,'cores':cores,'model':model},
         'memory':{'total':ram*1024**3,'used':ram*1024**3*[.38,.56,.22,.64][index],
@@ -168,7 +175,7 @@ class Dashboard:
                 last = int(rows[-1]['bucket'])
                 with self.db() as db:
                     db.execute('UPDATE hosts SET synced=? WHERE id=?',(last,h['id']))
-                if len(rows)<1000: break
+                if len(rows)<1000 and not result.get('has_more',False): break
                 cursor=last+1
             with self.lock: self.errors.pop(h['id']+'-history',None)
         except Exception:
@@ -236,6 +243,7 @@ class Dashboard:
         with self.db() as db:
             db.execute('DELETE FROM hosts WHERE id=?',(hid,))
             db.execute('DELETE FROM history WHERE host=?',(hid,))
+            db.execute('DELETE FROM disk_history WHERE host=?',(hid,))
         with self.lock:
             self.cache.pop(hid,None); self.errors.pop(hid,None)
             self.errors.pop(hid+'-history',None)
@@ -247,7 +255,8 @@ class Dashboard:
             step=300 if days==1 else 21600
             now=int(time.time())//step*step
             return [{'bucket':t,'cpu':max(1,m['cpu']['usage']+math.sin(t/3700)*9),
-                'memory':m['memory']['percent'],'gpu':None,
+                'disk_io':demo_disk_io(m['disks'],t,step),
+                'memory':m['memory']['percent'],'gpu':max(0,min(100,m['gpus'][0]['usage']+math.sin(t/2700)*12)) if m['gpus'] else None,
                 'rx':m['network']['rx']*(.7+.3*math.sin(t/1700)) + m['network']['rx']*.6*max(0,math.sin(t/5000))**8,
                 'tx':m['network']['tx']*(.8+.2*math.cos(t/2300)),
                 'rx_bytes':m['network']['rx']*step,'tx_bytes':m['network']['tx']*step}
@@ -256,9 +265,14 @@ class Dashboard:
         if days==1: return rows
         grouped={}
         for r in rows: grouped.setdefault(r['bucket']//21600*21600,[]).append(r)
-        return [dict(bucket=k,**{metric:sum(r[metric]*r['samples'] for r in group)/sum(r['samples'] for r in group)
-                      for metric in ('cpu','memory','rx','tx')},
-                     rx_bytes=sum(r['rx_bytes'] for r in group),tx_bytes=sum(r['tx_bytes'] for r in group))
+        def average(group, metric):
+            available=[r for r in group if r[metric] is not None]
+            samples=sum(r['samples'] for r in available)
+            return sum(r[metric]*r['samples'] for r in available)/samples if samples else None
+        return [dict(bucket=k,**{metric:average(group,metric)
+                      for metric in ('cpu','memory','gpu','rx','tx')},
+                     rx_bytes=sum(r['rx_bytes'] for r in group),tx_bytes=sum(r['tx_bytes'] for r in group),
+                     disk_io=merge_disk_io(r.get('disk_io',{}) for r in group))
                 for k,group in sorted(grouped.items())]
 
 
@@ -294,7 +308,7 @@ def handler(dashboard,token,dist):
                     hid=parsed.path.rsplit('/',1)[-1]
                     try: days=int(parse_qs(parsed.query).get('days',['1'])[0])
                     except ValueError: days=1
-                    if days not in (1,90): self.reply(400,{'error':'Период: 1 или 90 дней'}); return
+                    if days not in (1,7,30,90): self.reply(400,{'error':'Период: 1, 7, 30 или 90 дней'}); return
                     self.reply(200,{'records':dashboard.chart(hid,days)}); return
                 self.reply(404,{'error':'Не найдено'}); return
             target=(dist/parsed.path.lstrip('/')).resolve()

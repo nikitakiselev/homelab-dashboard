@@ -1,15 +1,20 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { createRoot } from "react-dom/client";
-import { BrowserRouter, Routes, Route, Link, useNavigate } from "react-router";
 import {
-  AreaChart,
-  Area,
-  CartesianGrid,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-} from "recharts";
+  BrowserRouter,
+  Routes,
+  Route,
+  Link,
+  useNavigate,
+  useParams,
+  useLocation,
+} from "react-router";
+import {
+  HistoryChart,
+  PeriodSelector,
+  type HistoryPeriod,
+} from "./components/resource-history";
+import { ServerPage } from "./components/server-page";
 import {
   LayoutGrid,
   Server,
@@ -34,7 +39,6 @@ import {
   Loader2,
   ShieldCheck,
   AlertTriangle,
-  Trash2,
   Terminal,
   Command,
   LogOut,
@@ -82,24 +86,21 @@ const viewPaths: Record<View, string> = {
 };
 function App({ view }: { view: View }) {
   const navigate = useNavigate();
+  const { serverId: detailId } = useParams();
+  const { hash } = useLocation();
   const setView = (next: View) => navigate(viewPaths[next]);
-  useEffect(() => {
-    document.title = `${labels[view]} — homelab-dashboard`;
-    window.scrollTo(0, 0);
-  }, [view]);
   const [hosts, setHosts] = useState<Host[]>([]),
     [loading, setLoading] = useState(true),
     [error, setError] = useState(""),
     [auth, setAuth] = useState(false),
     [token, setToken] = useState(sessionStorage.getItem("homelab-token") || "");
   const [authDraft, setAuthDraft] = useState("");
-  const [detailId, setDetailId] = useState<string | null>(null),
-    [deleteTarget, setDeleteTarget] = useState<string | null>(null),
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null),
     [deleteBusy, setDeleteBusy] = useState(false);
   const [search, setSearch] = useState(""),
     [selected, setSelected] = useState<string | null>(null),
     [add, setAdd] = useState(false),
-    [period, setPeriod] = useState<1 | 90>(1),
+    [period, setPeriod] = useState<HistoryPeriod>(1),
     [history, setHistory] = useState<Point[]>([]),
     [historyLoading, setHistoryLoading] = useState(false),
     [historyError, setHistoryError] = useState(""),
@@ -154,8 +155,18 @@ function App({ view }: { view: View }) {
         v?.toLowerCase().includes(search.toLowerCase()),
       ),
   );
-  const active = eligible.find((h) => h.id === selected) || eligible[0];
   const detail = hosts.find((h) => h.id === detailId);
+  const active = detailId
+    ? detail
+    : eligible.find((h) => h.id === selected) || eligible[0];
+  useEffect(() => {
+    document.title = `${detailId ? detail?.name || "Сервер" : labels[view]} — homelab-dashboard`;
+    if (hash && detail) {
+      document.getElementById(hash.slice(1))?.scrollIntoView();
+    } else {
+      window.scrollTo(0, 0);
+    }
+  }, [detailId, detail?.name, view, hash]);
   useEffect(() => {
     let alive = true;
     if (!active) {
@@ -203,13 +214,6 @@ function App({ view }: { view: View }) {
     usedMemory = metrics.reduce((s, m) => s + m.memory.used, 0),
     totalDisk = allDisks.reduce((s, d) => s + d.total, 0),
     usedDisk = allDisks.reduce((s, d) => s + d.used, 0);
-  const chartPoints = history.flatMap((point, index) => {
-    const next = history[index + 1],
-      step = period === 1 ? 300 : 21600;
-    return next && next.bucket - point.bucket > step * 1.5
-      ? [point, { ...point, bucket: point.bucket + step, rx: null, tx: null }]
-      : [point];
-  });
   const rx = metrics.reduce((s, m) => s + m.network.rx, 0),
     tx = metrics.reduce((s, m) => s + m.network.tx, 0),
     warnings = allDisks.filter((d) => ["warning", "failed"].includes(d.health));
@@ -284,7 +288,13 @@ function App({ view }: { view: View }) {
           <div className="flex items-center gap-2 text-sm">
             <span className="text-muted-foreground">Homelab</span>
             <ChevronRight size={12} className="text-muted-foreground" />
-            <span>{labels[view]}</span>
+            <Link to={viewPaths[view]}>{labels[view]}</Link>
+            {detailId && (
+              <>
+                <ChevronRight size={12} className="text-muted-foreground" />
+                <span className="truncate">{detail?.name || "Сервер"}</span>
+              </>
+            )}
           </div>
           <div className="flex items-center gap-4">
             <div className="hidden items-center gap-2 text-[14px] text-muted-foreground sm:flex">
@@ -330,34 +340,36 @@ function App({ view }: { view: View }) {
           ))}
         </nav>
         <div className="mx-auto max-w-[1510px] px-5 py-8 lg:px-9 lg:py-9">
-          <div className="mb-7 flex flex-wrap items-center justify-between gap-4">
-            <div>
-              <div className="mb-1.5 flex items-center gap-2 text-[14px] text-muted-foreground">
-                <span className="h-px w-5 bg-zinc-300" />
-                ИНФРАСТРУКТУРА
+          {!detailId && (
+            <div className="mb-7 flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <div className="mb-1.5 flex items-center gap-2 text-[14px] text-muted-foreground">
+                  <span className="h-px w-5 bg-zinc-300" />
+                  ИНФРАСТРУКТУРА
+                </div>
+                <h1 className="m-0 text-[30px] leading-tight font-semibold tracking-[-1.1px]">
+                  {view === "overview" ? "Обзор" : labels[view]}
+                </h1>
+                <p className="mt-2 mb-0 text-[14px] text-muted-foreground">
+                  {view === "overview"
+                    ? "Состояние серверов и использование ресурсов."
+                    : view === "storage"
+                      ? "Ёмкость, файловые системы и SMART."
+                      : view === "network"
+                        ? "Текущая скорость и история трафика ваших серверов."
+                        : "Подключённые хосты и их ресурсы."}
+                </p>
               </div>
-              <h1 className="m-0 text-[30px] leading-tight font-semibold tracking-[-1.1px]">
-                {view === "overview" ? "Обзор" : labels[view]}
-              </h1>
-              <p className="mt-2 mb-0 text-[14px] text-muted-foreground">
-                {view === "overview"
-                  ? "Состояние серверов и использование ресурсов."
-                  : view === "storage"
-                    ? "Ёмкость, файловые системы и SMART."
-                    : view === "network"
-                      ? "Текущая скорость и история трафика ваших серверов."
-                      : "Подключённые хосты и их ресурсы."}
-              </p>
+              <Button
+                onClick={() => setAdd(true)}
+                className="rounded-[9px] px-4 text-sm"
+              >
+                <Plus size={16} />
+                Добавить сервер
+              </Button>
             </div>
-            <Button
-              onClick={() => setAdd(true)}
-              className="rounded-[9px] px-4 text-sm"
-            >
-              <Plus size={16} />
-              Добавить сервер
-            </Button>
-          </div>
-          {hosts.some((h) => h.demo) && showDemo && (
+          )}
+          {hosts.some((h) => h.demo) && showDemo && !detailId && (
             <div className="mb-6 flex items-center justify-between gap-3 rounded-xl border border-blue-100 bg-blue-50/60 px-4 py-2.5 text-[14px] text-blue-700">
               <span className="flex items-center gap-2">
                 <Monitor size={14} />
@@ -391,6 +403,33 @@ function App({ view }: { view: View }) {
               <Loader2 className="spinner" size={18} />
               Загрузка метрик…
             </div>
+          ) : detailId ? (
+            detail ? (
+              <ServerPage
+                host={detail}
+                period={period}
+                onPeriodChange={setPeriod}
+                records={history}
+                loading={historyLoading}
+                error={historyError}
+                end={updated || Date.now() / 1000}
+                onDelete={() => setDeleteTarget(detail.id)}
+              >
+                <HostDetails host={detail} />
+              </ServerPage>
+            ) : (
+              <Card className="p-8">
+                <h1 className="text-xl font-semibold">Сервер не найден</h1>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  {error
+                    ? "Не удалось загрузить серверы. Повторите запрос."
+                    : "Сервер удалён или адрес указан неверно."}
+                </p>
+                <Button asChild className="mt-5">
+                  <Link to="/servers">Все серверы</Link>
+                </Button>
+              </Card>
+            )
           ) : (
             <>
               {(view === "overview" || view === "network") && (
@@ -518,10 +557,6 @@ function App({ view }: { view: View }) {
                         key={h.id}
                         host={h}
                         selected={active?.id === h.id}
-                        onClick={() => {
-                          setSelected(h.id);
-                          setDetailId(h.id);
-                        }}
                       />
                     ))}
                     {!visible.length && (
@@ -560,15 +595,31 @@ function App({ view }: { view: View }) {
                           <Server size={19} />
                         </div>
                         <div>
-                          <h2 className="text-sm font-semibold">{h.name}</h2>
+                          <h2 className="text-sm font-semibold">
+                            <Link
+                              to={`/servers/${encodeURIComponent(h.id)}`}
+                              className="hover:text-blue-700"
+                            >
+                              {h.name}
+                            </Link>
+                          </h2>
                           <p className="text-[14px] text-muted-foreground">
                             {h.ip} · {h.online ? "В сети" : "Недоступен"}
                             {h.demo ? " · Демо" : ""}
                           </p>
                         </div>
-                        <span className="ml-auto text-sm text-muted-foreground">
-                          {h.metrics?.disks.length || 0} накопителей
-                        </span>
+                        <Button
+                          asChild
+                          variant="outline"
+                          size="sm"
+                          className="ml-auto"
+                        >
+                          <Link
+                            to={`/servers/${encodeURIComponent(h.id)}#disk-activity`}
+                          >
+                            История дисков <ArrowUpRight size={14} />
+                          </Link>
+                        </Button>
                       </div>
                       {!h.online && (
                         <p className="mb-3 text-sm text-orange-700">
@@ -612,22 +663,7 @@ function App({ view }: { view: View }) {
                           </select>
                         </label>
                       </div>
-                      <div className="inline-flex rounded-lg bg-[#f2f3f5] p-[3px]">
-                        {([1, 90] as const).map((d) => (
-                          <button
-                            key={d}
-                            onClick={() => setPeriod(d)}
-                            className={cn(
-                              "rounded-md px-3 py-1 text-[12px] cursor-pointer",
-                              period === d
-                                ? "bg-white font-medium shadow-xs"
-                                : "text-muted-foreground",
-                            )}
-                          >
-                            {d === 1 ? "24 часа" : "90 дней"}
-                          </button>
-                        ))}
-                      </div>
+                      <PeriodSelector value={period} onChange={setPeriod} />
                     </div>
                     <div className="mb-2 flex items-center gap-7">
                       <div>
@@ -659,120 +695,18 @@ function App({ view }: { view: View }) {
                         </div>
                       </div>
                     </div>
-                    <div className="h-[240px] pt-4">
-                      {historyLoading ? (
-                        <Empty text="Загружаем историю…" />
-                      ) : historyError ? (
-                        <Empty text={historyError} />
-                      ) : history.length ? (
-                        <ResponsiveContainer width="100%" height="100%">
-                          <AreaChart
-                            data={chartPoints}
-                            margin={{ top: 8, right: 3, left: -17, bottom: 0 }}
-                          >
-                            <defs>
-                              <linearGradient
-                                id="rx"
-                                x1="0"
-                                y1="0"
-                                x2="0"
-                                y2="1"
-                              >
-                                <stop
-                                  offset="0%"
-                                  stopColor="#0066cc"
-                                  stopOpacity={0.13}
-                                />
-                                <stop
-                                  offset="100%"
-                                  stopColor="#0066cc"
-                                  stopOpacity={0.005}
-                                />
-                              </linearGradient>
-                            </defs>
-                            <CartesianGrid
-                              strokeDasharray="3 4"
-                              vertical={false}
-                              stroke="#eceef1"
-                            />
-                            <XAxis
-                              dataKey="bucket"
-                              type="number"
-                              scale="time"
-                              domain={[
-                                (updated || Date.now() / 1000) - period * 86400,
-                                updated || Date.now() / 1000,
-                              ]}
-                              allowDataOverflow
-                              axisLine={false}
-                              tickLine={false}
-                              minTickGap={45}
-                              tickFormatter={(v) =>
-                                new Date(v * 1000)
-                                  .toLocaleDateString(
-                                    "ru-RU",
-                                    period === 1
-                                      ? {
-                                          hour: "2-digit",
-                                          minute: "2-digit",
-                                          day: undefined,
-                                          month: undefined,
-                                        }
-                                      : { day: "numeric", month: "short" },
-                                  )
-                                  .replace(/^.*?, /, "")
-                              }
-                              tick={{ fontSize: 12 }}
-                            />
-                            <YAxis
-                              axisLine={false}
-                              tickLine={false}
-                              tickFormatter={(v) => bytes(v, 0)}
-                              width={63}
-                              tick={{ fontSize: 12 }}
-                            />
-                            <Tooltip
-                              labelFormatter={(v) =>
-                                new Date(Number(v) * 1000).toLocaleString(
-                                  "ru-RU",
-                                )
-                              }
-                              formatter={(v: number, n: string) => [
-                                speed(v),
-                                n === "rx" ? "Приём" : "Передача",
-                              ]}
-                              contentStyle={{
-                                borderRadius: 12,
-                                border: "1px solid #eee",
-                                fontSize: 14,
-                                boxShadow: "0 4px 20px #00000008",
-                              }}
-                            />
-                            <Area
-                              dot={history.length === 1 ? { r: 3 } : false}
-                              connectNulls={false}
-                              type="monotone"
-                              dataKey="rx"
-                              stroke="#0066cc"
-                              strokeWidth={1.8}
-                              fill="url(#rx)"
-                              isAnimationActive={false}
-                            />
-                            <Area
-                              dot={history.length === 1 ? { r: 3 } : false}
-                              connectNulls={false}
-                              type="monotone"
-                              dataKey="tx"
-                              stroke="#087f6f"
-                              strokeWidth={1.5}
-                              fill="transparent"
-                              isAnimationActive={false}
-                            />
-                          </AreaChart>
-                        </ResponsiveContainer>
-                      ) : (
-                        <Empty text="Агент начнёт накапливать историю после установки." />
-                      )}
+                    <div className="pt-4">
+                      <HistoryChart
+                        records={history}
+                        period={period}
+                        end={updated || Date.now() / 1000}
+                        loading={historyLoading}
+                        error={historyError}
+                        series={[
+                          { key: "rx", label: "Приём", color: "#0066cc" },
+                          { key: "tx", label: "Передача", color: "#087f6f" },
+                        ]}
+                      />
                     </div>
                     <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-black/5 pt-3 text-[12px] text-muted-foreground">
                       <div className="flex gap-4">
@@ -963,62 +897,6 @@ function App({ view }: { view: View }) {
           </form>
         </DialogContent>
       </Dialog>
-      <Drawer
-        open={!!detail}
-        onOpenChange={(open) => {
-          if (!open) setDetailId(null);
-        }}
-      >
-        <DrawerContent className="max-w-2xl">
-          {detail && (
-            <>
-              <DrawerHeader>
-                <DrawerTitle className="break-words text-[22px] font-semibold tracking-tight">
-                  {detail.name}
-                </DrawerTitle>
-                <DrawerDescription className="mt-2 text-sm text-muted-foreground">
-                  {detail.local
-                    ? "Центральный сервер"
-                    : `${detail.ip}:${detail.port}`}{" "}
-                  · {detail.metrics?.os || "ОС неизвестна"}
-                  {detail.demo ? " · Демонстрационные данные" : ""}
-                </DrawerDescription>
-              </DrawerHeader>
-              <DrawerBody>
-                <HostDetails host={detail} />
-              </DrawerBody>
-              <DrawerFooter className="justify-between">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setSelected(detail.id);
-                    setDetailId(null);
-                    setView("network");
-                  }}
-                >
-                  <Network size={13} />
-                  История сети
-                </Button>
-                {!detail.demo && !detail.local && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-red-700"
-                    onClick={() => {
-                      setDeleteTarget(detail.id);
-                      setDetailId(null);
-                    }}
-                  >
-                    <Trash2 size={13} />
-                    Удалить сервер
-                  </Button>
-                )}
-              </DrawerFooter>
-            </>
-          )}
-        </DrawerContent>
-      </Drawer>
       <Dialog
         open={!!deleteTarget}
         onOpenChange={(open) => {
@@ -1051,6 +929,7 @@ function App({ view }: { view: View }) {
                   await request("/hosts/" + deleteTarget, { method: "DELETE" });
                   setDeleteTarget(null);
                   setSelected(null);
+                  if (detailId) navigate("/servers");
                   await load();
                 } catch (e) {
                   setError((e as Error).message);
@@ -1115,20 +994,12 @@ function Summary({
     </Card>
   );
 }
-function ServerCard({
-  host: h,
-  selected,
-  onClick,
-}: {
-  host: Host;
-  selected: boolean;
-  onClick: () => void;
-}) {
+function ServerCard({ host: h, selected }: { host: Host; selected: boolean }) {
   const m = h.metrics,
     warn = m?.disks.some((d) => ["warning", "failed"].includes(d.health));
   return (
-    <button
-      onClick={onClick}
+    <Link
+      to={`/servers/${encodeURIComponent(h.id)}`}
       className={cn(
         "group appearance-none rounded-2xl border bg-white p-5 text-left shadow-[0_2px_8px_#00000003] transition-all hover:shadow-md cursor-pointer",
         selected
@@ -1285,7 +1156,7 @@ function ServerCard({
           {h.error}
         </p>
       )}
-    </button>
+    </Link>
   );
 }
 function Meter({
@@ -1378,15 +1249,17 @@ function DiskDetails({ disk: d }: { disk: Disk }) {
       {d.smart_state && (
         <div className="mb-4 space-y-1 text-[12px]">
           <p>
-            {d.smart_state === "sleeping"
-              ? "Диск спит. SMART и заполнение томов не опрашиваются; показаны последние сохранённые данные."
-              : d.smart_state === "skipped"
-                ? "Опрос SMART пропущен: для этого подключения безопасная проверка сна не настроена."
-                : d.smart_state === "unsupported"
-                  ? "Устройство не поддерживает безопасную проверку сна. SMART не опрашивается."
-                  : d.smart_state === "unavailable"
-                    ? "SMART недоступен. Проверьте права и наличие smartmontools 7.3 или новее. Повторный опрос без защиты сна не выполняется."
-                    : "SMART получен при последнем опросе."}
+            {d.smart_state === "passive"
+              ? "Автоматический SMART-опрос отключён: команды могут мешать таймеру сна и вызывать парковку головок. Показаны только метаданные и сохранённые показатели."
+              : d.smart_state === "sleeping"
+                ? "Диск спит. SMART и заполнение томов не опрашиваются; показаны последние сохранённые данные."
+                : d.smart_state === "skipped"
+                  ? "Опрос SMART пропущен: для этого подключения безопасная проверка сна не настроена."
+                  : d.smart_state === "unsupported"
+                    ? "Устройство не поддерживает безопасную проверку сна. SMART не опрашивается."
+                    : d.smart_state === "unavailable"
+                      ? "SMART недоступен. Проверьте права и наличие smartmontools 7.3 или новее. Повторный опрос без защиты сна не выполняется."
+                      : "SMART получен при последнем опросе."}
           </p>
           <p>Данные SMART: {diskSampleTime(d.smart_updated_at)}</p>
           <p>Заполнение томов: {diskSampleTime(d.usage_updated_at)}</p>
@@ -1712,6 +1585,7 @@ createRoot(document.getElementById("root")!).render(
         {(Object.entries(viewPaths) as [View, string][]).map(([view, path]) => (
           <Route key={view} path={path} element={<App view={view} />} />
         ))}
+        <Route path="/servers/:serverId" element={<App view="servers" />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </BrowserRouter>

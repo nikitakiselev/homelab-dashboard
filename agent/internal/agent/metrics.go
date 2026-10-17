@@ -59,6 +59,7 @@ type Disk struct {
 	Volumes      []Volume `json:"volumes"`
 }
 type Metrics struct {
+	DiskIO       map[string]DiskIO `json:"disk_io,omitempty"`
 	Timestamp    float64           `json:"timestamp"`
 	Interval     float64           `json:"collection_interval"`
 	AgentID      string            `json:"agent_id"`

@@ -2,6 +2,7 @@ package agent
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	_ "modernc.org/sqlite"
 	"os"
@@ -24,7 +25,7 @@ func OpenHistory(path string, days int) (*History, error) {
 	}
 	db.SetMaxOpenConns(1)
 	_, err = db.Exec(`PRAGMA busy_timeout=15000; CREATE TABLE IF NOT EXISTS history (
- host TEXT, bucket INTEGER, cpu REAL, memory REAL, gpu REAL, rx REAL, tx REAL, rx_bytes REAL, tx_bytes REAL, samples INTEGER, PRIMARY KEY(host,bucket))`)
+ host TEXT, bucket INTEGER, cpu REAL, memory REAL, gpu REAL, rx REAL, tx REAL, rx_bytes REAL, tx_bytes REAL, samples INTEGER, PRIMARY KEY(host,bucket)); CREATE TABLE IF NOT EXISTS disk_history (host TEXT, bucket INTEGER, payload TEXT NOT NULL, PRIMARY KEY(host,bucket))`)
 	if err != nil {
 		db.Close()
 		return nil, err
@@ -48,6 +49,30 @@ func (h *History) Sample(m Metrics, rx, tx float64) error {
 	if err != nil {
 		return err
 	}
+	if len(m.DiskIO) > 0 {
+		combined := map[string]DiskIO{}
+		var raw string
+		scanErr := t.QueryRow("SELECT payload FROM disk_history WHERE host=? AND bucket=?", m.AgentID, int64(m.Timestamp)/300*300).Scan(&raw)
+		if scanErr != nil && scanErr != sql.ErrNoRows {
+			return scanErr
+		}
+		if raw != "" {
+			if err = json.Unmarshal([]byte(raw), &combined); err != nil {
+				return err
+			}
+		}
+		addDiskIO(combined, m.DiskIO)
+		payload, marshalErr := json.Marshal(combined)
+		if marshalErr != nil {
+			return marshalErr
+		}
+		if _, err = t.Exec("INSERT OR REPLACE INTO disk_history VALUES (?,?,?)", m.AgentID, int64(m.Timestamp)/300*300, string(payload)); err != nil {
+			return err
+		}
+	}
+	if _, err = t.Exec("DELETE FROM disk_history WHERE bucket < ?", time.Now().Unix()-int64(h.days)*86400); err != nil {
+		return err
+	}
 	if _, err = t.Exec("DELETE FROM history WHERE bucket < ?", time.Now().Unix()-int64(h.days)*86400); err != nil {
 		return err
 	}
@@ -57,17 +82,19 @@ func (h *History) Read(host string, since int64) ([]map[string]any, error) {
 	if min := time.Now().Unix() - int64(h.days)*86400; since < min {
 		since = min
 	}
-	rows, err := h.db.Query("SELECT host,bucket,cpu,memory,gpu,rx,tx,rx_bytes,tx_bytes,samples FROM history WHERE host=? AND bucket>=? ORDER BY bucket LIMIT 1000", host, since)
+	rows, err := h.db.Query("SELECT h.host,h.bucket,cpu,memory,gpu,rx,tx,rx_bytes,tx_bytes,samples,d.payload FROM history h LEFT JOIN disk_history d ON d.host=h.host AND d.bucket=h.bucket WHERE h.host=? AND h.bucket>=? ORDER BY h.bucket LIMIT 1000", host, since)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	out := []map[string]any{}
+	size := 0
 	for rows.Next() {
 		var host string
+		var payload sql.NullString
 		var bucket, samples int64
 		var cpu, mem, gpu, rx, tx, rb, tb sql.NullFloat64
-		if err = rows.Scan(&host, &bucket, &cpu, &mem, &gpu, &rx, &tx, &rb, &tb, &samples); err != nil {
+		if err = rows.Scan(&host, &bucket, &cpu, &mem, &gpu, &rx, &tx, &rb, &tb, &samples, &payload); err != nil {
 			return nil, err
 		}
 		values := map[string]any{"host": host, "bucket": bucket, "samples": samples}
@@ -78,10 +105,31 @@ func (h *History) Read(host string, since int64) ([]map[string]any, error) {
 				values[k] = nil
 			}
 		}
+		if payload.Valid {
+			var disks map[string]DiskIO
+			if err = json.Unmarshal([]byte(payload.String), &disks); err != nil {
+				return nil, err
+			}
+			values["disk_io"] = disks
+		}
+		encoded, encodeErr := json.Marshal(values)
+		if encodeErr != nil {
+			return nil, encodeErr
+		}
+		if size+len(encoded) > 1_000_000 && len(out) > 0 {
+			break
+		}
+		size += len(encoded)
 		out = append(out, values)
 	}
 	if err = rows.Err(); err != nil {
 		return nil, fmt.Errorf("history: %w", err)
 	}
 	return out, nil
+}
+
+func (h *History) hasMore(host string, after int64) (bool, error) {
+	var more bool
+	err := h.db.QueryRow("SELECT EXISTS(SELECT 1 FROM history WHERE host=? AND bucket>?)", host, after).Scan(&more)
+	return more, err
 }

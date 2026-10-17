@@ -25,6 +25,7 @@ type Collector struct {
 	disks        []Disk
 	gpus         []GPU
 	diagnostics  map[string]string
+	previousDisk map[string]diskCounters
 	previousCPU  [2]float64
 	previousNet  map[string][2]float64
 	previousTime time.Time
@@ -220,6 +221,22 @@ func (c *Collector) Collect() error {
 		rx = 0
 		tx = 0
 	}
+	diskIO := map[string]DiskIO{}
+	if c.Config.Collection.Disks.Enabled {
+		raw, err := os.ReadFile("/proc/diskstats")
+		current := parseDiskstats(string(raw), func(name string) bool {
+			return !strings.HasPrefix(name, "loop") && !strings.HasPrefix(name, "ram") && !strings.HasPrefix(name, "zram") && exists("/sys/block/"+name)
+		})
+		diskIO = diskDeltas(current, c.previousDisk, elapsed)
+		c.previousDisk = current
+		c.mu.Lock()
+		if err != nil {
+			c.diagnostics["disk_io"] = "Не удалось прочитать /proc/diskstats"
+		} else {
+			delete(c.diagnostics, "disk_io")
+		}
+		c.mu.Unlock()
+	}
 	c.previousNet = counters
 	c.previousTime = now
 	model := runtime.GOARCH
@@ -254,7 +271,7 @@ func (c *Collector) Collect() error {
 	for k, v := range c.diagnostics {
 		diagnostics[k] = v
 	}
-	m := Metrics{Timestamp: float64(now.UnixNano()) / 1e9, Interval: c.Config.Collection.Interval, AgentID: c.ID, AgentVersion: Version, Hostname: hostname, OS: osname, Platform: "Linux", CPU: CPU{usage, runtime.NumCPU(), model}, Memory: Memory{mt, used, math.Round(float64(used)/float64(mt)*1000) / 10}, Network: network, Uptime: uptime, Disks: c.disks, GPUs: c.gpus, Diagnostics: diagnostics}
+	m := Metrics{DiskIO: diskIO, Timestamp: float64(now.UnixNano()) / 1e9, Interval: c.Config.Collection.Interval, AgentID: c.ID, AgentVersion: Version, Hostname: hostname, OS: osname, Platform: "Linux", CPU: CPU{usage, runtime.NumCPU(), model}, Memory: Memory{mt, used, math.Round(float64(used)/float64(mt)*1000) / 10}, Network: network, Uptime: uptime, Disks: c.disks, GPUs: c.gpus, Diagnostics: diagnostics}
 	c.latest = &m
 	c.mu.Unlock()
 	if usage != nil && c.History != nil {

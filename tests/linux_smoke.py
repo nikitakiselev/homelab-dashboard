@@ -46,6 +46,10 @@ def main():
             assert metrics['memory']['total']>0
             assert 0<=metrics['memory']['percent']<=100
             assert metrics['uptime']>0
+            assert metrics.get('disk_io'),'Real /proc/diskstats sampling failed'
+            for io in metrics['disk_io'].values():
+                assert io['seconds']>0
+                assert all(io[k]>=0 for k in ('read_bytes','write_bytes','read_ops','write_ops'))
             assert metrics['agent_version']==AGENT_VERSION
             assert metrics['agent_id']==agent_id,'Migration changed machine identity'
             with urlopen(Request(base+'/v1/history?since=0',headers={'Authorization':'Bearer '+token})) as response:
@@ -67,6 +71,8 @@ def main():
             assert dashboard.public_hosts()[0]['online']
             assert dashboard.public_hosts()[0]['metrics']['agent_version']==AGENT_VERSION
             assert dashboard.chart(hid,1),'Agent history did not reach dashboard'
+            assert any(r.get('disk_io') for r in dashboard.chart(hid,1) if r['bucket']>=int(metrics['timestamp'])//300*300),'Go disk I/O history did not reach dashboard'
+            assert any(r.get('disk_io') for r in dashboard.chart(hid,90)),'Aggregated disk I/O history missing'
             restored=Dashboard(data+'/dashboard.sqlite')
             assert restored.public_hosts()[0]['metrics']['agent_version']==AGENT_VERSION
             assert restored.chart(hid,90),'Dashboard restart lost history'
@@ -78,6 +84,8 @@ def main():
                 assert own['local'] and own['online']
                 assert own['port'] is None
                 assert builtin.chart('local',1),'Built-in collector did not persist history'
+                assert own['metrics'].get('disk_io'),'Built-in /proc/diskstats sampling failed'
+                assert any(r.get('disk_io') for r in builtin.chart('local',1)),'Built-in disk I/O history missing'
                 print('PASS: central server collects its own Linux metrics without an external agent or agent port',flush=True)
             finally:
                 builtin.close()

@@ -9,6 +9,7 @@ import subprocess
 import time
 from pathlib import Path
 from .runtime import SamplingRuntime
+from .diskstats import parse_diskstats, disk_deltas
 from ... import __version__
 
 
@@ -28,12 +29,9 @@ def command(args):
 
 
 def disk_smart_args(name, transport):
-    # Never autodetect USB/RAID bridges: identification itself can spin up HDDs.
+    # Standby checks can still disturb awake HDDs. Never send ATA/power commands.
     if name.startswith('nvme'):
         return ['smartctl', '-a', '-j', '-d', 'nvme', '/dev/'+name]
-    if transport in ('sata', 'ata'):
-        # STATUS2 fails closed if CHECK POWER MODE is unsupported (smartctl 7.3+).
-        return ['smartctl', '-a', '-j', '-d', 'ata', '-n', 'standby,75,76', '/dev/'+name]
     return None
 
 
@@ -84,6 +82,9 @@ def disks(previous=None):
         devices = json.loads(raw)['blockdevices']
     except (ValueError, KeyError):
         return []
+    # A filesystem discovered beneath an SSD may share an HDD-backed pool.
+    passive_filesystems = any(d['type'] == 'disk' and not d['name'].startswith(('nvme','loop','ram','zram'))
+                              and d.get('rota') not in (False,0,'0') for d in devices)
     result = []
     seen_fs = set()
     for d in devices:
@@ -92,7 +93,7 @@ def disks(previous=None):
         disk = {'name':d['name'], 'model':(d.get('model') or d['name']).strip(),
                 'serial':(d.get('serial') or '').strip(), 'firmware':(d.get('rev') or '').strip(),
                 'interface':d.get('tran') or '',
-                'type':'NVMe' if d['name'].startswith('nvme') else 'HDD' if d.get('rota') in (True, 1, '1') else 'SSD',
+                'type':'NVMe' if d['name'].startswith('nvme') else 'SSD' if d.get('rota') in (False, 0, '0') else 'HDD',
                 'total':int(d.get('size') or 0), 'used':0, 'mounted_total':0, 'volumes':[],
                 'health':'unknown', 'temperature':None, 'warning':None}
         for old in previous or []:
@@ -102,14 +103,14 @@ def disks(previous=None):
         disk.update(power_state='unknown', smart_state='unavailable')
         args = disk_smart_args(disk['name'], disk['interface'])
         if args is None:
-            disk['smart_state'] = 'skipped'
+            disk['smart_state'] = 'passive'
         elif shutil.which('smartctl'):
             try:
                 apply_smart(disk, json.loads(command(args)))
             except (ValueError, TypeError, AttributeError):
                 pass
-        # stat/statvfs can cause filesystem I/O. Do not touch sleeping/unknown HDDs.
-        if disk['type'] == 'HDD' and disk['power_state'] != 'active':
+        # A cached awake state does not permit filesystem probes on an HDD.
+        if disk['type'] == 'HDD' or passive_filesystems:
             result.append(disk)
             continue
         mounts = []
@@ -202,6 +203,7 @@ def gpus():
 class Collector(SamplingRuntime):
     def __init__(self, history, history_host=None):
         super().__init__(history,history_host)
+        self.previous_disk = {}
         self.agent_id = hashlib.sha256(read('/etc/machine-id',platform.node()).encode()).hexdigest()[:24]
 
     def collect(self):
@@ -246,10 +248,20 @@ class Collector(SamplingRuntime):
                     old_rx,old_tx = self.previous_net[name]
                     rx_delta += max(0,rx-old_rx)
                     tx_delta += max(0,tx-old_tx)
+        disk_io = {}
+        if self.disks_enabled:
+            raw = read('/proc/diskstats')
+            current = parse_diskstats(raw, lambda name: not name.startswith(('loop','ram','zram')) and Path('/sys/block',name).exists())
+            disk_io = disk_deltas(current,self.previous_disk,elapsed)
+            self.previous_disk = current
+            if not raw:
+                self.hardware_errors['disk_io'] = 'Не удалось прочитать /proc/diskstats'
+            else:
+                self.hardware_errors.pop('disk_io',None)
         self.previous_net,self.previous_time = counters,monotonic_now
         os_name = next((line.split('=',1)[1].strip('"') for line in read('/etc/os-release').splitlines()
                         if line.startswith('PRETTY_NAME=')), platform.system())
-        metrics = {'timestamp':now,'collection_interval':self.interval_seconds,'agent_id':self.agent_id,'agent_version':__version__,'hostname':platform.node(),
+        metrics = {'disk_io':disk_io,'timestamp':now,'collection_interval':self.interval_seconds,'agent_id':self.agent_id,'agent_version':__version__,'hostname':platform.node(),
             'os':os_name,'platform':'Proxmox' if Path('/etc/pve').exists() else 'Linux',
             'cpu':{'usage':round(cpu,1) if cpu is not None else None,'cores':os.cpu_count(),
                    'model':next((l.split(':',1)[1].strip() for l in read('/proc/cpuinfo').splitlines()

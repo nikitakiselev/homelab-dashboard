@@ -27,7 +27,7 @@ func ReadDisks(ctx context.Context) ([]Disk, error) {
 	return readDisks(ctx, nil, command)
 }
 
-// Only kernel/udev metadata is read before the guarded SMART request.
+// ATA devices are passive: never send SMART/power commands or probe HDD filesystems.
 func readDisks(ctx context.Context, previous []Disk, run func(context.Context, ...string) ([]byte, error)) ([]Disk, error) {
 	out, err := run(ctx, "lsblk", "-J", "-b", "-o", "NAME,TYPE,SIZE,MODEL,SERIAL,REV,ROTA,TRAN,MOUNTPOINTS")
 	if err != nil {
@@ -48,6 +48,20 @@ func readDisks(ctx context.Context, previous []Disk, run func(context.Context, .
 	var raw struct{ Blockdevices []json.RawMessage }
 	if err = json.Unmarshal(out, &raw); err != nil {
 		return []Disk{}, err
+	}
+	// Shared ZFS/RAID/LVM mounts can involve an HDD even when discovered under
+	// an SSD. Without complete pool topology, skip filesystem probes host-wide.
+	passiveFilesystems := false
+	for _, entry := range raw.Blockdevices {
+		var d device
+		if json.Unmarshal(entry, &d) != nil {
+			passiveFilesystems = true
+			continue
+		}
+		knownSSD := strings.HasPrefix(d.Name, "nvme") || string(d.Rota) == "false" || string(d.Rota) == "0" || string(d.Rota) == "\"0\""
+		if d.Type == "disk" && !knownSSD && !strings.HasPrefix(d.Name, "loop") && !strings.HasPrefix(d.Name, "ram") && !strings.HasPrefix(d.Name, "zram") {
+			passiveFilesystems = true
+		}
 	}
 	disks := []Disk{}
 	seen := map[uint64]bool{}
@@ -75,14 +89,14 @@ func readDisks(ctx context.Context, previous []Disk, run func(context.Context, .
 			}
 		}
 		walk(d)
-		disk := Disk{Name: d.Name, Model: strings.TrimSpace(d.Model), Type: "SSD", Total: uint64(number(strings.Trim(string(d.Size), "\""))), Health: "unknown", Volumes: []Volume{}}
+		disk := Disk{Name: d.Name, Model: strings.TrimSpace(d.Model), Type: "HDD", Total: uint64(number(strings.Trim(string(d.Size), "\""))), Health: "unknown", Volumes: []Volume{}}
 		if disk.Model == "" {
 			disk.Model = d.Name
 		}
 		if strings.HasPrefix(d.Name, "nvme") {
 			disk.Type = "NVMe"
-		} else if string(d.Rota) == "true" || string(d.Rota) == "1" || string(d.Rota) == "\"1\"" {
-			disk.Type = "HDD"
+		} else if string(d.Rota) == "false" || string(d.Rota) == "0" || string(d.Rota) == "\"0\"" {
+			disk.Type = "SSD"
 		}
 		disk.Serial, disk.Firmware, disk.Interface = strings.TrimSpace(d.Serial), strings.TrimSpace(d.Rev), d.Tran
 		// Reuse samples only when the physical identity matches; never just /dev/sdX.
@@ -94,19 +108,20 @@ func readDisks(ctx context.Context, previous []Disk, run func(context.Context, .
 			}
 		}
 		disk.PowerState, disk.SMARTState = "unknown", "unavailable"
-		// Avoid autodetection: USB bridges and unknown transports may spin up a disk.
-		args := diskSMARTArgs(disk.Name, d.Tran)
-		if args == nil {
-			disk.SMARTState = "skipped"
-		} else {
+		// Even a standby-guarded SMART request can reset an awake HDD's idle
+		// timer or unpark its heads. Never poll ATA/SATA/USB devices.
+		if args := diskSMARTArgs(disk.Name, d.Tran); args != nil {
 			smart, _ := run(ctx, args...)
 			applySMART(&disk, smart)
+		} else {
+			disk.SMARTState = "passive"
 		}
-		// stat/statfs can trigger filesystem I/O. Skip them unless HDD is confirmed awake.
-		if disk.Type == "HDD" && disk.PowerState != "active" {
+		// Cached active status is not permission to touch a rotational disk.
+		if disk.Type == "HDD" || passiveFilesystems {
 			disks = append(disks, disk)
 			continue
 		}
+
 		disk.Volumes, disk.Used, disk.MountedTotal = []Volume{}, 0, 0
 		for mount := range mounts {
 			var st syscall.Stat_t
@@ -127,14 +142,10 @@ func readDisks(ctx context.Context, previous []Disk, run func(context.Context, .
 	return disks, nil
 }
 
-// Explicit types avoid potentially waking device autodetection. STATUS2 makes
-// unsupported ATA power checks fail closed (requires smartmontools >= 7.3).
+// Only NVMe SMART is polled. No ATA commands, including CHECK POWER MODE.
 func diskSMARTArgs(name, transport string) []string {
 	if strings.HasPrefix(name, "nvme") {
 		return []string{"smartctl", "-a", "-j", "-d", "nvme", "/dev/" + name}
-	}
-	if transport == "sata" || transport == "ata" {
-		return []string{"smartctl", "-a", "-j", "-d", "ata", "-n", "standby,75,76", "/dev/" + name}
 	}
 	return nil
 }
