@@ -29,10 +29,12 @@ export type Disk = {
   volumes: { mount: string; total: number; used: number }[];
 };
 export type GPU = {
+  engines?: Record<string, number>;
+  shared_memory?: boolean;
   name: string;
   usage: number;
-  memory_used: number;
-  memory_total: number;
+  memory_used: number | null;
+  memory_total: number | null;
   temperature: number | null;
 };
 export type Metrics = {

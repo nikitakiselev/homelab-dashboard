@@ -6,6 +6,7 @@ import json
 import os
 import platform
 import shutil
+import signal
 import subprocess
 import threading
 import time
@@ -87,6 +88,44 @@ def disks():
     return result
 
 
+def intel_gpu_sample(card):
+    """Read bounded PMU samples; SIGINT allows intel_gpu_top to finish JSON."""
+    if not shutil.which('intel_gpu_top'):
+        raise RuntimeError('Intel GPU: установите intel-gpu-tools для получения загрузки')
+    process = subprocess.Popen(['intel_gpu_top','-J','-s','500','-d',f'drm:/dev/dri/{card.name}','-o','-'],
+                               stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    try:
+        output, error = process.communicate(timeout=1.3)
+    except subprocess.TimeoutExpired:
+        process.send_signal(signal.SIGINT)
+        try:
+            output, error = process.communicate(timeout=2)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.communicate()
+            raise RuntimeError('Intel GPU: тайм-аут чтения счётчиков')
+    # A killed tool may leave an unfinished array; use complete records only.
+    decoder = json.JSONDecoder()
+    remaining = output.strip().lstrip('[').lstrip()
+    records = []
+    while remaining and not remaining.startswith(']'):
+        try:
+            record, end = decoder.raw_decode(remaining)
+            records.append(record)
+            remaining = remaining[end:].lstrip().lstrip(',').lstrip()
+        except ValueError:
+            break
+    if not records:
+        raise RuntimeError('Intel GPU: '+(error.strip()[:180] or 'счётчики недоступны'))
+    engines = {name:float(value['busy']) for name,value in records[-1].get('engines',{}).items()
+               if isinstance(value,dict) and isinstance(value.get('busy'),(int,float))}
+    if not engines:
+        raise RuntimeError('Intel GPU: драйвер не предоставил загрузку движков')
+    return {'name':'Intel GPU (i915)',
+            'usage':max(0,min(100,max(engines.values()))),'memory_used':None,'memory_total':None,
+            'temperature':None,'engines':engines,'shared_memory':True}
+
+
 def gpus():
     result = []
     if shutil.which('nvidia-smi'):
@@ -101,6 +140,9 @@ def gpus():
                 continue
     for card in Path('/sys/class/drm').glob('card[0-9]*'):
         if '-' in card.name: continue
+        if read(card/'device/vendor') == '0x8086':
+            result.append(intel_gpu_sample(card))
+            continue
         busy = read(card/'device/gpu_busy_percent')
         if busy:
             result.append({'name':read(card/'device/product_name', 'AMD GPU'), 'usage':float(busy),

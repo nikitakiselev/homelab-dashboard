@@ -4,7 +4,7 @@ from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
-from homelab.agent import Collector, disks
+from homelab.agent import Collector, disks, intel_gpu_sample
 from homelab.bundle import agent_archive, FILES
 from homelab.storage import History
 from deploy.install_agent import environment
@@ -61,6 +61,21 @@ class CollectorTests(unittest.TestCase):
         for smart, expected in cases:
             with self.subTest(expected=expected),patch('homelab.agent.shutil.which',return_value='/usr/sbin/smartctl'),patch('homelab.agent.command',side_effect=lambda args:json.dumps(block if args[0]=='lsblk' else smart)):
                 self.assertEqual(disks()[0]['health'],expected)
+
+    def test_intel_gpu_uses_busiest_engine_without_invented_vram(self):
+        sample=[{'engines':{'Render/3D':{'busy':17.5},'Video':{'busy':62.0}}}]
+        with patch('homelab.agent.shutil.which',return_value='/usr/bin/intel_gpu_top'),patch('homelab.agent.subprocess.Popen') as spawn:
+            spawn.return_value.communicate.return_value=(json.dumps(sample),'')
+            gpu=intel_gpu_sample(Path('/sys/class/drm/card1'))
+        self.assertEqual(gpu['usage'],62.0)
+        self.assertIsNone(gpu['memory_total'])
+        self.assertTrue(gpu['shared_memory'])
+
+    def test_intel_gpu_missing_counters_are_not_zero_load(self):
+        with patch('homelab.agent.shutil.which',return_value='/usr/bin/intel_gpu_top'),patch('homelab.agent.subprocess.Popen') as spawn:
+            spawn.return_value.communicate.return_value=('[]','PMU unavailable')
+            with self.assertRaisesRegex(RuntimeError,'PMU unavailable'):
+                intel_gpu_sample(Path('/sys/class/drm/card1'))
 
     def test_installer_keeps_existing_credentials(self):
         token='preserve-this-existing-test-token'

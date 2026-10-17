@@ -62,12 +62,17 @@ def main():
         parser.error('Port must be between 1 and 65535')
     # Validate configuration before modifying files or installing packages.
     content = environment(existing, port, args.interfaces)
-    missing = [name for name in ('lsblk','smartctl') if not shutil.which(name)]
+    packages = {'lsblk':'util-linux','smartctl':'smartmontools'}
+    if any((card/'device/vendor').read_text().strip()=='0x8086'
+           for card in Path('/sys/class/drm').glob('card[0-9]*')
+           if '-' not in card.name and (card/'device/vendor').exists()):
+        packages['intel_gpu_top'] = 'intel-gpu-tools'
+    missing = [name for name in packages if not shutil.which(name)]
     if missing and not args.skip_packages:
         if not shutil.which('apt-get'):
-            parser.error('Install smartmontools and util-linux with your package manager, then retry')
+            parser.error('Install missing packages with your package manager: '+', '.join(packages[name] for name in missing))
         run('apt-get','update')
-        run('apt-get','install','-y','smartmontools','util-linux')
+        run('apt-get','install','-y',*(packages[name] for name in missing))
     elif missing:
         print('Warning: missing utilities: '+', '.join(missing))
     target = Path('/opt/homelab-dashboard')

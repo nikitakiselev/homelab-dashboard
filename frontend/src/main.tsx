@@ -1712,7 +1712,10 @@ function HostDetails({ host }: { host: Host }) {
                   detail={gpu.name}
                 />
                 <p className="mt-3 text-[11px] text-zinc-400">
-                  VRAM {bytes(gpu.memory_used)} / {bytes(gpu.memory_total)}
+                  VRAM{" "}
+                  {gpu.memory_used != null && gpu.memory_total != null
+                    ? `${bytes(gpu.memory_used)} / ${bytes(gpu.memory_total)}`
+                    : "общая системная память"}
                   {gpu.temperature != null ? ` · ${gpu.temperature} °C` : ""}
                 </p>
               </div>
