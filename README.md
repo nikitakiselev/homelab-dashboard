@@ -90,6 +90,7 @@ When moving an existing systemd installation, migrate its SQLite database and to
 - CPU, memory, supported GPUs, uptime, and host availability.
 - HDD/SSD/NVMe capacity and disk I/O history; automatic SATA/ATA HDD power-state metrics with sleeping/rotating indicators, automatic NVMe SMART, and opt-in daily ATA SMART snapshots during observed I/O for explicitly selected direct SATA disks. Cached readings include timestamps; HDD filesystem usage may be unavailable or stale.
 - Dedicated server pages with CPU, memory, GPU, network, and disk I/O history for 24 hours, 7 days, 30 days, or 90 days.
+- Overview network chart compares all hosts: click a host in the legend to isolate it, click again to restore all, or Ctrl/Command/Shift-click to select multiple hosts. Solid lines show received traffic; dashed lines show sent traffic.
 - Agents retain history locally and synchronize it after the central service reconnects.
 - YAML configuration for collection intervals, network interfaces, and history retention.
 

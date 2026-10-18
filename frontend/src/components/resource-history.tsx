@@ -59,6 +59,7 @@ export function HistoryChart({
   loading,
   error,
   emptyText,
+  height = 250,
 }: {
   records: Point[];
   period: HistoryPeriod;
@@ -67,6 +68,7 @@ export function HistoryChart({
   loading: boolean;
   error: string;
   emptyText?: string;
+  height?: number;
 }) {
   const id = useId().replace(/:/g, "");
   const network = series.some((s) => s.key === "rx" || s.key === "tx");
@@ -96,7 +98,8 @@ export function HistoryChart({
     <div
       role="img"
       aria-label={`История: ${series.map((s) => s.label).join(", ")}`}
-      className="h-[250px] min-w-0"
+      className="min-w-0"
+      style={{ height }}
     >
       {message ? (
         <div

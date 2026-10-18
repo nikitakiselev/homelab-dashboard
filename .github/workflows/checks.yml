@@ -28,6 +28,7 @@ jobs:
       - run: sh -n install.sh
       - run: npm ci
       - run: npm run build
+      - run: node --experimental-strip-types --test tests/frontend/network-history.test.mjs
       - run: python3 -m unittest discover -s tests -v
       - run: python3 tests/linux_smoke.py
       - name: Verify Go agent install and rollback

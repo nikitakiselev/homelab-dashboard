@@ -28,6 +28,8 @@ go build -o ../releases/homelab-agent ./cmd/homelab-agent
 
 Изменения UI форматируются через `npm run format`. Не включайте в коммиты env-файлы, базы метрик, сгенерированные архивы, `node_modules` и сведения о домашней инфраструктуре.
 
+Проверки объединения сетевой истории и выбора серверов в легенде: `node --experimental-strip-types --test tests/frontend/network-history.test.mjs` (Node.js 22.6+).
+
 ## Структура
 
 ```text

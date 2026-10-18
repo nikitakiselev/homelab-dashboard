@@ -4,26 +4,21 @@ import {
   BrowserRouter,
   Routes,
   Route,
+  Navigate,
   Link,
   useNavigate,
   useParams,
   useLocation,
 } from "react-router";
-import {
-  HistoryChart,
-  PeriodSelector,
-  type HistoryPeriod,
-} from "./components/resource-history";
+import { type HistoryPeriod } from "./components/resource-history";
+import { NetworkHistory } from "./components/network-history";
 import { ServerPage } from "./components/server-page";
 import {
   LayoutGrid,
   Server,
   HardDrive,
-  Network,
   Plus,
   Search,
-  ArrowDown,
-  ArrowUp,
   ArrowUpRight,
   Cpu,
   MemoryStick,
@@ -72,18 +67,16 @@ import {
 import { DiskStatus, getDiskStatus } from "./components/disk-status";
 import "./index.css";
 
-type View = "overview" | "servers" | "storage" | "network";
+type View = "overview" | "servers" | "storage";
 const labels: Record<View, string> = {
   overview: "Обзор",
   servers: "Серверы",
   storage: "Накопители",
-  network: "Сеть",
 };
 const viewPaths: Record<View, string> = {
   overview: "/",
   servers: "/servers",
   storage: "/storage",
-  network: "/network",
 };
 function App({ view }: { view: View }) {
   const navigate = useNavigate();
@@ -103,7 +96,6 @@ function App({ view }: { view: View }) {
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null),
     [deleteBusy, setDeleteBusy] = useState(false);
   const [search, setSearch] = useState(""),
-    [selected, setSelected] = useState<string | null>(null),
     [add, setAdd] = useState(false),
     [period, setPeriod] = useState<HistoryPeriod>(1),
     [history, setHistory] = useState<Point[]>([]),
@@ -162,16 +154,10 @@ function App({ view }: { view: View }) {
       ),
   );
   const detail = hosts.find((h) => h.id === detailId);
-  const active = detailId
-    ? detail
-    : eligible.find((h) => h.id === selected) || eligible[0];
+  const active = detail;
   useEffect(() => {
     document.title = `${detailId ? detail?.name || "Сервер" : labels[view]} — homelab-dashboard`;
-    if (hash && detail) {
-      document.getElementById(hash.slice(1))?.scrollIntoView();
-    } else {
-      window.scrollTo(0, 0);
-    }
+    window.scrollTo(0, 0);
   }, [detailId, detail?.name, view, hash]);
   useEffect(() => {
     let alive = true;
@@ -220,9 +206,9 @@ function App({ view }: { view: View }) {
     usedMemory = metrics.reduce((s, m) => s + m.memory.used, 0),
     totalDisk = allDisks.reduce((s, d) => s + d.total, 0),
     usedDisk = allDisks.reduce((s, d) => s + d.used, 0);
-  const rx = metrics.reduce((s, m) => s + m.network.rx, 0),
-    tx = metrics.reduce((s, m) => s + m.network.tx, 0),
-    warnings = allDisks.filter((d) => ["warning", "failed"].includes(d.health));
+  const warnings = allDisks.filter((d) =>
+    ["warning", "failed"].includes(d.health),
+  );
   const smartUnchecked = allDisks.some(
     (d) =>
       d.health === "unknown" || (d.smart_state && d.smart_state !== "fresh"),
@@ -250,7 +236,6 @@ function App({ view }: { view: View }) {
               ["overview", LayoutGrid],
               ["servers", Server],
               ["storage", HardDrive],
-              ["network", Network],
             ] as const
           ).map(([id, Icon]) => (
             <Link
@@ -312,7 +297,7 @@ function App({ view }: { view: View }) {
         )}
       </aside>
       <main className="min-w-0 flex-1 lg:ml-[218px]">
-        <header className="flex h-[70px] items-center justify-between gap-4 border-b border-black/[0.05] bg-white/60 px-5 lg:px-9">
+        <header className="flex h-[56px] items-center justify-between gap-4 border-b border-black/[0.05] bg-white/60 px-5 lg:px-9">
           <div className="flex items-center gap-2 text-sm">
             <span className="text-muted-foreground">Homelab</span>
             <ChevronRight size={12} className="text-muted-foreground" />
@@ -325,7 +310,11 @@ function App({ view }: { view: View }) {
             )}
           </div>
           <div className="flex items-center gap-4">
-            <div className="hidden items-center gap-2 text-[14px] text-muted-foreground sm:flex">
+            <div
+              tabIndex={0}
+              aria-describedby="last-update-tooltip"
+              className="group/update relative hidden cursor-help items-center gap-2 rounded text-sm text-muted-foreground focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-blue-600 sm:flex"
+            >
               <span
                 className={cn(
                   "h-1.5 w-1.5 rounded-full",
@@ -333,6 +322,17 @@ function App({ view }: { view: View }) {
                 )}
               />
               {updated ? "Обновление каждые 10 секунд" : "Подключение…"}
+              <span
+                id="last-update-tooltip"
+                role="tooltip"
+                className="absolute top-full right-0 z-30 hidden w-64 pt-2 group-hover/update:block group-focus-within/update:block"
+              >
+                <span className="block rounded-lg border border-zinc-200 bg-white p-3 text-xs leading-5 text-foreground shadow-lg">
+                  {updated
+                    ? `Последнее обновление: ${new Date(updated * 1000).toLocaleString("ru-RU")}`
+                    : "Данные ещё не получены"}
+                </span>
+              </span>
             </div>
             <Button
               variant="ghost"
@@ -367,15 +367,15 @@ function App({ view }: { view: View }) {
             </Button>
           ))}
         </nav>
-        <div className="mx-auto max-w-[1510px] px-5 py-8 lg:px-9 lg:py-9">
+        <div className="mx-auto max-w-[1510px] px-4 py-5 lg:px-6 lg:py-6">
           {!detailId && (
-            <div className="mb-7 flex flex-wrap items-center justify-between gap-4">
+            <div className="mb-5 flex flex-wrap items-center justify-between gap-4">
               <div>
                 <div className="mb-1.5 flex items-center gap-2 text-[14px] text-muted-foreground">
                   <span className="h-px w-5 bg-zinc-300" />
                   ИНФРАСТРУКТУРА
                 </div>
-                <h1 className="m-0 text-[30px] leading-tight font-semibold tracking-[-1.1px]">
+                <h1 className="m-0 text-[26px] leading-tight font-semibold tracking-[-1.1px]">
                   {view === "overview" ? "Обзор" : labels[view]}
                 </h1>
                 <p className="mt-2 mb-0 text-[14px] text-muted-foreground">
@@ -383,9 +383,7 @@ function App({ view }: { view: View }) {
                     ? "Состояние серверов и использование ресурсов."
                     : view === "storage"
                       ? "Состояние дисков, заполнение и SMART."
-                      : view === "network"
-                        ? "Текущая скорость и история трафика ваших серверов."
-                        : "Подключённые хосты и их ресурсы."}
+                      : "Подключённые хосты и их ресурсы."}
                 </p>
               </div>
               <Button
@@ -442,9 +440,14 @@ function App({ view }: { view: View }) {
                 error={historyError}
                 end={updated || Date.now() / 1000}
                 onDelete={() => setDeleteTarget(detail.id)}
-              >
-                <HostDetails host={detail} />
-              </ServerPage>
+                system={<HostDetails host={detail} />}
+                disks={
+                  <DiskList
+                    disks={detail.metrics?.disks || []}
+                    online={detail.online}
+                  />
+                }
+              />
             ) : (
               <Card className="p-8">
                 <h1 className="text-xl font-semibold">Сервер не найден</h1>
@@ -460,8 +463,8 @@ function App({ view }: { view: View }) {
             )
           ) : (
             <>
-              {(view === "overview" || view === "network") && (
-                <div className="mb-8 grid grid-cols-2 gap-3 xl:grid-cols-4 xl:gap-4">
+              {view === "overview" && (
+                <div className="mb-5 grid grid-cols-2 gap-3 xl:grid-cols-4">
                   <Summary
                     icon={Server}
                     title="Серверы"
@@ -579,13 +582,9 @@ function App({ view }: { view: View }) {
                       />
                     </label>
                   </div>
-                  <div className="mb-8 grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-3">
+                  <div className="mb-5 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
                     {visible.map((h) => (
-                      <ServerCard
-                        key={h.id}
-                        host={h}
-                        selected={active?.id === h.id}
-                      />
+                      <ServerCard key={h.id} host={h} />
                     ))}
                     {!visible.length && (
                       <Card className="col-span-full flex flex-col items-center py-14 text-center">
@@ -617,13 +616,13 @@ function App({ view }: { view: View }) {
               {view === "storage" && (
                 <div className="space-y-6">
                   {visible.map((h) => (
-                    <Card key={h.id} className="p-5">
-                      <div className="mb-5 flex items-center gap-3">
-                        <div className="rounded-xl bg-blue-50 p-2.5 text-blue-700">
+                    <Card key={h.id} className="min-w-0 px-4">
+                      <div className="flex flex-wrap items-center gap-3 border-b border-zinc-100 py-3">
+                        <div className="shrink-0 rounded-lg bg-blue-50 p-2 text-blue-700">
                           <Server size={19} />
                         </div>
-                        <div>
-                          <h2 className="text-sm font-semibold">
+                        <div className="min-w-0 flex-1">
+                          <h2 className="break-words text-sm font-semibold">
                             <Link
                               to={`/servers/${encodeURIComponent(h.id)}`}
                               className="hover:text-blue-700"
@@ -631,7 +630,7 @@ function App({ view }: { view: View }) {
                               {h.name}
                             </Link>
                           </h2>
-                          <p className="text-[14px] text-muted-foreground">
+                          <p className="break-words text-xs text-muted-foreground">
                             {h.ip} · {h.online ? "В сети" : "Недоступен"}
                             {h.demo ? " · Демо" : ""}
                           </p>
@@ -640,12 +639,12 @@ function App({ view }: { view: View }) {
                           asChild
                           variant="outline"
                           size="sm"
-                          className="ml-auto"
+                          className="ml-auto shrink-0"
                         >
                           <Link
                             to={`/servers/${encodeURIComponent(h.id)}#disk-activity`}
                           >
-                            История дисков <ArrowUpRight size={14} />
+                            Чтение и запись <ArrowUpRight size={14} />
                           </Link>
                         </Button>
                       </div>
@@ -665,103 +664,15 @@ function App({ view }: { view: View }) {
                   )}
                 </div>
               )}
-              {(view === "overview" || view === "network") && (
+              {view === "overview" && (
                 <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(300px,1fr)]">
-                  <Card className="min-w-0 p-5">
-                    <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-                      <div>
-                        <h2 className="m-0 flex items-center gap-2 text-sm font-semibold">
-                          <Network
-                            size={16}
-                            className="text-muted-foreground"
-                          />
-                          Сетевая активность
-                        </h2>
-                        <label className="mt-2 block">
-                          <span className="sr-only">Сервер для графика</span>
-                          <select
-                            aria-label="Сервер для графика"
-                            value={active?.id || ""}
-                            onChange={(e) => setSelected(e.target.value)}
-                            className="max-w-full rounded-md border border-zinc-200 bg-white px-2 py-1 text-sm text-muted-foreground"
-                          >
-                            {eligible.map((h) => (
-                              <option key={h.id} value={h.id}>
-                                {h.name}
-                                {h.demo ? " · демо" : ""}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-                      </div>
-                      <PeriodSelector value={period} onChange={setPeriod} />
-                    </div>
-                    <div className="mb-2 flex items-center gap-7">
-                      <div>
-                        <span className="mb-1 flex items-center gap-1.5 text-[12px] text-muted-foreground">
-                          <ArrowDown size={11} className="text-blue-700" />
-                          Приём сейчас
-                        </span>
-                        <span className="text-xl font-medium tracking-[-.6px]">
-                          {active?.online
-                            ? speed(active.metrics?.network.rx || 0)
-                            : "—"}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="mb-1 flex items-center gap-1.5 text-[12px] text-muted-foreground">
-                          <ArrowUp size={11} className="text-emerald-700" />
-                          Передача сейчас
-                        </span>
-                        <span className="text-xl font-medium tracking-[-.6px]">
-                          {active?.online
-                            ? speed(active.metrics?.network.tx || 0)
-                            : "—"}
-                        </span>
-                      </div>
-                      <div className="ml-auto hidden text-right text-[12px] leading-5 text-muted-foreground sm:block">
-                        <div>По всем серверам</div>
-                        <div>
-                          ↓ {speed(rx)} &nbsp; ↑ {speed(tx)}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="pt-4">
-                      <HistoryChart
-                        records={history}
-                        period={period}
-                        end={updated || Date.now() / 1000}
-                        loading={historyLoading}
-                        error={historyError}
-                        series={[
-                          { key: "rx", label: "Приём", color: "#0066cc" },
-                          { key: "tx", label: "Передача", color: "#087f6f" },
-                        ]}
-                      />
-                    </div>
-                    <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-black/5 pt-3 text-[12px] text-muted-foreground">
-                      <div className="flex gap-4">
-                        <span className="flex items-center gap-1.5">
-                          <i className="h-1.5 w-1.5 rounded-full bg-blue-500" />
-                          Приём
-                        </span>
-                        <span className="flex items-center gap-1.5">
-                          <i className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                          Передача
-                        </span>
-                      </div>
-                      <span>
-                        За период: ↓{" "}
-                        {bytes(history.reduce((s, p) => s + p.rx_bytes, 0))} · ↑{" "}
-                        {bytes(history.reduce((s, p) => s + p.tx_bytes, 0))}
-                      </span>
-                    </div>
-                    {active?.history_error && (
-                      <p className="mt-2 text-[12px] text-orange-700">
-                        {active.history_error}
-                      </p>
-                    )}
-                  </Card>
+                  <NetworkHistory
+                    hosts={eligible}
+                    request={request}
+                    period={period}
+                    onPeriodChange={setPeriod}
+                    end={updated || Date.now() / 1000}
+                  />
                   <Card className="p-5">
                     <div className="mb-5 flex items-center justify-between">
                       <h2 className="m-0 flex items-center gap-2 text-sm font-semibold">
@@ -826,7 +737,6 @@ function App({ view }: { view: View }) {
                             <button
                               key={h.id}
                               onClick={() => {
-                                setSelected(h.id);
                                 setView("storage");
                               }}
                               className="flex w-full items-center gap-2 text-left cursor-pointer"
@@ -875,18 +785,6 @@ function App({ view }: { view: View }) {
               )}
             </>
           )}
-          <footer className="mt-8 flex flex-wrap items-center justify-between gap-2 text-[12px] text-muted-foreground">
-            <span className="flex items-center gap-1.5">
-              <ShieldCheck size={12} />
-              Локальный мониторинг
-            </span>
-            <span>
-              {updated
-                ? `Последнее обновление ${new Date(updated * 1000).toLocaleTimeString("ru-RU")}`
-                : "Ожидание данных"}
-              <span className="mx-2">·</span>Homelab v0.1
-            </span>
-          </footer>
         </div>
       </main>
       <AddServer
@@ -964,7 +862,6 @@ function App({ view }: { view: View }) {
                 try {
                   await request("/hosts/" + deleteTarget, { method: "DELETE" });
                   setDeleteTarget(null);
-                  setSelected(null);
                   if (detailId) navigate("/servers");
                   await load();
                 } catch (e) {
@@ -1006,15 +903,15 @@ function Summary({
     green: "bg-emerald-50 text-emerald-700",
   };
   return (
-    <Card className="p-4 xl:p-5">
-      <div className="mb-4 flex items-center justify-between">
+    <Card className="p-3.5">
+      <div className="mb-2 flex items-center justify-between">
         <span className="text-[14px] text-muted-foreground">{title}</span>
         <div className={cn("rounded-lg p-1.5", colors[color])}>
           <Icon size={15} strokeWidth={1.7} />
         </div>
       </div>
       <div className="flex items-baseline gap-1.5">
-        <span className="text-[27px] leading-none font-semibold tracking-[-1px]">
+        <span className="text-[23px] leading-none font-semibold tracking-[-1px]">
           {value}
         </span>
         <span className="text-base font-normal text-muted-foreground">
@@ -1024,175 +921,192 @@ function Summary({
       <div className="mt-2 min-h-4 text-[12px] text-muted-foreground">
         {detail}
       </div>
-      <div className="mt-4 flex min-h-5 items-center gap-2 text-[12px] text-muted-foreground">
+      <div className="mt-2 flex min-h-5 items-center gap-2 text-[12px] text-muted-foreground">
         {footer}
       </div>
     </Card>
   );
 }
-function ServerCard({ host: h, selected }: { host: Host; selected: boolean }) {
-  const m = h.metrics,
-    warn = m?.disks.some((d) => ["warning", "failed"].includes(d.health));
+function ServerCard({ host: h }: { host: Host }) {
+  const m = h.metrics;
+  const [copied, setCopied] = useState(false);
+  const [copyError, setCopyError] = useState("");
+  useEffect(() => {
+    if (!copied) return;
+    const timer = window.setTimeout(() => setCopied(false), 2000);
+    return () => window.clearTimeout(timer);
+  }, [copied]);
+  const copyAddress = async () => {
+    try {
+      await navigator.clipboard.writeText(h.ip);
+      setCopied(true);
+      setCopyError("");
+    } catch {
+      setCopyError(
+        "Не удалось скопировать IP. Выделите адрес и скопируйте вручную.",
+      );
+    }
+  };
+  const warnings =
+    m?.disks.filter((d) => ["warning", "failed"].includes(d.health)).length ||
+    0;
+  const resources = [
+    {
+      label: "CPU",
+      value: h.online ? m?.cpu.usage : null,
+      detail: m ? `${m.cpu.model} · ${m.cpu.cores} потоков` : "Нет данных CPU",
+    },
+    {
+      label: "RAM",
+      value: h.online ? m?.memory.percent : null,
+      detail:
+        h.online && m
+          ? `Занято ${bytes(m.memory.used)} из ${bytes(m.memory.total)}`
+          : "Нет текущих данных о памяти",
+    },
+    {
+      label: "GPU",
+      value: h.online ? m?.gpus[0]?.usage : null,
+      detail: m?.gpus[0]?.name || "Нет данных GPU",
+    },
+  ];
   return (
-    <Link
-      to={`/servers/${encodeURIComponent(h.id)}`}
-      className={cn(
-        "group appearance-none rounded-2xl border bg-white p-5 text-left shadow-[0_2px_8px_#00000003] transition-all hover:shadow-md cursor-pointer",
-        selected
-          ? "border-[#007aff55] ring-1 ring-[#007aff08]"
-          : "border-black/[.065]",
-      )}
-    >
-      <div className="mb-5 flex items-center gap-3">
-        <div
+    <article className="group relative flex min-w-0 flex-col rounded-xl border border-zinc-200 bg-white p-3.5 text-left transition-colors hover:border-blue-400 focus-within:border-blue-400">
+      <div className="flex min-w-0 items-start gap-2.5">
+        <div className="min-w-0 flex-1">
+          <h3 className="truncate text-sm font-semibold group-hover:text-blue-700">
+            <Link
+              to={`/servers/${encodeURIComponent(h.id)}`}
+              title={`${h.name}${m?.os ? ` · ${m.os}` : ""}`}
+              className="after:absolute after:inset-0 after:rounded-xl focus-visible:outline-none focus-visible:after:outline-2 focus-visible:after:outline-blue-600"
+            >
+              {h.name}
+            </Link>
+          </h3>
+          <div className="relative z-10 mt-0.5 flex w-fit max-w-full items-center gap-1 text-xs text-muted-foreground">
+            <span className="select-text break-all font-mono">{h.ip}</span>
+            <button
+              type="button"
+              onClick={copyAddress}
+              aria-label={
+                copied ? `IP ${h.ip} скопирован` : `Скопировать IP ${h.ip}`
+              }
+              title={copied ? "Скопировано" : "Скопировать IP"}
+              className="inline-flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded text-muted-foreground hover:bg-blue-50 hover:text-blue-700"
+            >
+              {copied ? (
+                <Check size={13} className="text-emerald-700" />
+              ) : (
+                <Copy size={13} />
+              )}
+            </button>
+          </div>
+        </div>
+        <span
           className={cn(
-            "relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl",
-            m?.platform === "Proxmox"
-              ? "bg-[#fff4e9] text-orange-800"
-              : "bg-[#eef2fb] text-blue-700",
+            "flex shrink-0 items-center gap-1.5 pt-0.5 text-[11px]",
+            h.online ? "text-emerald-700" : "text-orange-700",
           )}
         >
-          <Server size={23} strokeWidth={1.3} />
           <span
             className={cn(
-              "absolute -right-0.5 -bottom-0.5 h-2.5 w-2.5 rounded-full border-2 border-white",
-              h.online ? "bg-emerald-400" : "bg-zinc-300",
+              "h-1.5 w-1.5 rounded-full",
+              h.online ? "bg-emerald-500" : "bg-orange-400",
             )}
           />
-        </div>
-        <div className="min-w-0">
-          <h3 className="truncate text-[14px] font-semibold tracking-[-.2px]">
-            {h.name}
-          </h3>
-          <div className="mt-1 flex items-center gap-2 text-[12px] text-muted-foreground">
-            <span>{h.ip}</span>
-            <span className="rounded border border-zinc-100 bg-zinc-50 px-1.5 py-px text-[12px]">
-              {m?.platform === "Proxmox"
-                ? "Proxmox"
-                : m?.platform === "macOS"
-                  ? "macOS"
-                  : m?.os.startsWith("Ubuntu")
-                    ? "Ubuntu"
-                    : "Linux"}
-            </span>
-          </div>
-          <div className="mt-1 text-[12px] text-muted-foreground">
-            Агент: {m?.agent_version || "Неизвестна"}
-          </div>
-        </div>
-        <div className="ml-auto flex flex-col items-end gap-1.5">
-          <span
-            className={cn(
-              "rounded-full px-2 py-0.5 text-[12px]",
-              h.online
-                ? "bg-emerald-50 text-emerald-700"
-                : "bg-zinc-100 text-muted-foreground",
-            )}
-          >
-            {h.online ? "В сети" : "Недоступен"}
-          </span>
-          {h.demo && (
-            <span className="text-[12px] text-muted-foreground">ДЕМО</span>
-          )}
-        </div>
-      </div>
-      <div className="grid grid-cols-2 gap-x-5 gap-y-4">
-        <Meter
-          label="CPU"
-          value={h.online ? m?.cpu.usage : null}
-          detail={m ? `${m.cpu.cores} потоков` : undefined}
-        />
-        <Meter
-          label="Память"
-          value={h.online ? m?.memory.percent : null}
-          detail={
-            m
-              ? `${bytes(m.memory.used, 0)} / ${bytes(m.memory.total, 0)}`
-              : undefined
-          }
-        />
-        {!!m?.gpus.length && (
-          <Meter
-            label="GPU"
-            value={h.online ? m.gpus[0].usage : null}
-            detail={m.gpus[0].name}
-          />
-        )}
-        <div className={m?.gpus.length ? "" : "col-span-2"}>
-          <div className="mb-2 flex items-center justify-between text-[12px]">
-            <span className="text-muted-foreground">
-              Накопители{" "}
-              <span className="ml-1 text-muted-foreground">
-                {m?.disks.length || 0}
-              </span>
-            </span>
-            <span
-              className={cn(
-                "flex items-center gap-1",
-                warn ? "text-orange-700" : "text-muted-foreground",
-              )}
-            >
-              {warn && <AlertTriangle size={10} />}{" "}
-              {m ? bytes(m.disks.reduce((s, d) => s + d.used, 0)) : "—"}{" "}
-              <span className="text-muted-foreground">
-                / {m ? bytes(m.disks.reduce((s, d) => s + d.total, 0)) : "—"}
-              </span>
-            </span>
-          </div>
-          <div className="flex gap-1">
-            {m?.disks.map((d) => (
-              <div
-                key={d.name}
-                className="h-1 flex-1 overflow-hidden rounded-full bg-zinc-100"
-              >
-                <div
-                  className={cn(
-                    "h-full rounded-full",
-                    d.health === "warning" || d.health === "failed"
-                      ? "bg-orange-300"
-                      : "bg-[#b5c4d5]",
-                  )}
-                  style={{
-                    width:
-                      (d.total ? Math.min(100, (d.used / d.total) * 100) : 0) +
-                      "%",
-                  }}
-                />
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-      <div className="mt-5 flex items-center justify-between border-t border-black/5 pt-3 text-[12px] text-muted-foreground">
-        <div className="flex gap-3">
-          <span className="flex items-center gap-1">
-            <ArrowDown size={10} className="text-blue-700" />
-            {h.online ? speed(m?.network.rx || 0) : "—"}
-          </span>
-          <span className="flex items-center gap-1">
-            <ArrowUp size={10} className="text-emerald-700" />
-            {h.online ? speed(m?.network.tx || 0) : "—"}
-          </span>
-        </div>
-        <span className="flex items-center gap-1">
-          {h.online && m
-            ? `${Math.floor(m.uptime / 86400)} д. в работе`
-            : "Нет связи"}
-          <ChevronRight
-            size={11}
-            className={selected ? "text-blue-700" : "text-muted-foreground"}
-          />
+          {h.online ? "В сети" : "Нет связи"}
+          {h.demo && <span className="text-muted-foreground">· Демо</span>}
         </span>
       </div>
+      <span role="status" className="sr-only">
+        {copied ? "IP-адрес скопирован" : ""}
+      </span>
+      {copyError && (
+        <p role="alert" className="relative z-10 mt-1 text-xs text-orange-700">
+          {copyError}
+        </p>
+      )}
+      <div className="my-3 grid grid-cols-3 gap-3.5">
+        {resources.map(({ label, value, detail }) => (
+          <div key={label} className="min-w-0" title={detail}>
+            <div className="text-[11px] text-muted-foreground">{label}</div>
+            <div
+              className={cn(
+                "mt-0.5 mb-1.5 text-[19px] leading-6 font-semibold",
+                value != null && value >= 90 && "text-orange-700",
+              )}
+            >
+              {percent(value)}
+            </div>
+            <div
+              role={value == null ? undefined : "progressbar"}
+              aria-label={
+                label === "RAM" ? "Занятая память" : `Загрузка ${label}`
+              }
+              aria-valuemin={value == null ? undefined : 0}
+              aria-valuemax={value == null ? undefined : 100}
+              aria-valuenow={
+                value == null ? undefined : Math.max(0, Math.min(100, value))
+              }
+              aria-valuetext={
+                value == null ? undefined : `${percent(value)} · ${detail}`
+              }
+              className="h-[5px] overflow-hidden rounded-full bg-zinc-100"
+            >
+              <div
+                className={cn(
+                  "h-full rounded-full",
+                  value != null && value >= 90
+                    ? "bg-orange-400"
+                    : label === "RAM"
+                      ? "bg-violet-500"
+                      : "bg-blue-500",
+                )}
+                style={{
+                  width: `${value == null ? 0 : Math.max(0, Math.min(100, value))}%`,
+                }}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-zinc-100 pt-2 text-[11px] text-muted-foreground">
+        <span
+          title={
+            warnings ? `${warnings} накопителей требуют внимания` : "Накопители"
+          }
+          className={cn(
+            "flex items-center gap-1",
+            warnings && "text-orange-700",
+          )}
+        >
+          {warnings ? <AlertTriangle size={12} /> : <HardDrive size={12} />}
+          {m
+            ? `${m.disks.length} · ${bytes(m.disks.reduce((sum, d) => sum + d.total, 0))}`
+            : "—"}
+        </span>
+        <span>
+          {h.online && m
+            ? `↓ ${speed(m.network.rx)} · ↑ ${speed(m.network.tx)}`
+            : "Сеть: —"}
+        </span>
+      </div>
+      {!h.online && (
+        <p className="mt-2 text-[11px] text-orange-700">
+          {m
+            ? "Сведения сохранены с последнего подключения"
+            : "Метрики ещё не получены"}
+        </p>
+      )}
       {!h.online && h.error && (
         <p
-          className="mt-2 truncate text-[12px] text-orange-700"
           title={h.error}
+          className="mt-1 truncate text-[11px] text-orange-700"
         >
           {h.error}
         </p>
       )}
-    </Link>
+    </article>
   );
 }
 function Meter({
@@ -1238,9 +1152,9 @@ function Meter({
 }
 function healthText(d: Disk) {
   if (d.smart_state === "not_applicable") return "SMART неприменим";
-  if (d.health === "healthy") return "В норме";
-  if (d.health === "warning") return "Проверить";
-  if (d.health === "failed") return "Критическое";
+  if (d.health === "healthy") return "SMART: без ошибок";
+  if (d.health === "warning") return "SMART: предупреждение";
+  if (d.health === "failed") return "SMART: ошибки";
   if (d.smart_state === "passive" || d.smart_state === "skipped")
     return "SMART не опрашивается";
   if (d.smart_state === "sleeping") return "SMART: диск спал при проверке";
@@ -1345,14 +1259,14 @@ function DiskDetails({ disk: d }: { disk: Disk }) {
           <p>Заполнение томов: {diskSampleTime(d.usage_updated_at)}</p>
         </div>
       )}
-      <dl className="mb-4 grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2">
+      <dl className="mb-3 grid min-w-0 grid-cols-1 gap-x-6 gap-y-2 lg:grid-cols-2">
         {rows.map(([label, value]) => (
           <div
             key={label}
-            className="flex flex-wrap justify-between gap-x-3 gap-y-1"
+            className="grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-start gap-3"
           >
             <dt className="text-[12px]">{label}</dt>
-            <dd className="break-all text-[12px] font-medium text-foreground">
+            <dd className="break-all text-right text-xs font-medium text-foreground">
               {value}
             </dd>
           </div>
@@ -1372,77 +1286,71 @@ function DiskList({
   return (
     <div className="divide-y divide-zinc-100">
       {disks.map((d) => (
-        <div key={d.name}>
+        <div key={d.name} className="min-w-0">
           <button
             onClick={() => setOpen(open === d.name ? null : d.name)}
             aria-expanded={open === d.name}
-            className="flex w-full flex-wrap items-center gap-3 py-4 text-left cursor-pointer"
+            className="group/disk-row grid w-full min-w-0 cursor-pointer grid-cols-[minmax(0,1fr)_16px] items-center gap-x-3 gap-y-2 py-3 text-left xl:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)_minmax(0,1fr)_16px]"
           >
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-zinc-50 text-muted-foreground">
-              <HardDrive size={20} strokeWidth={1.4} />
-            </div>
-            <div className="min-w-[130px] flex-1">
-              <div className="text-sm font-medium">{d.model}</div>
-              <div className="mt-1 text-[12px] text-muted-foreground">
+            <span className="min-w-0">
+              <span className="relative flex min-w-0 items-center gap-1.5 text-sm font-medium">
+                <span className="min-w-0 break-words">
+                  {d.model || `/dev/${d.name}`}
+                </span>
+                <DiskStatus disk={d} online={online} />
+              </span>
+              <span className="mt-0.5 block break-all text-xs text-muted-foreground">
                 /dev/{d.name} ·{" "}
                 {d.type === "Unknown" ? "Тип неизвестен" : d.type} ·{" "}
                 {bytes(d.total)}
-                {d.temperature != null
-                  ? ` · ${d.temperature} °C${d.smart_state && d.smart_state !== "fresh" ? " (ранее)" : ""}`
-                  : ""}
-              </div>
-            </div>
-            <DiskStatus disk={d} online={online} />
-            <div className="min-w-[120px] flex-1 sm:max-w-60">
-              <div className="mb-1.5 text-[12px] text-muted-foreground">
+                {d.temperature != null ? ` · ${d.temperature} °C` : ""}
+              </span>
+            </span>
+            <span className="col-start-1 min-w-0 xl:col-start-2 xl:row-start-1">
+              <span className="mb-1 block text-xs text-muted-foreground">
                 {d.volumes.length
-                  ? `${bytes(d.used)} занято в томах${d.smart_state && d.type === "HDD" && d.power_state !== "active" ? " (ранее)" : ""}`
-                  : d.smart_state && !d.usage_updated_at
-                    ? "Заполнение не опрашивалось"
-                    : "Нет смонтированных томов"}
-              </div>
-              <div className="h-1.5 overflow-hidden rounded-full bg-zinc-100">
-                <div
-                  className="h-full rounded-full bg-blue-300"
-                  style={{
-                    width:
-                      (d.total ? Math.min(100, (d.used / d.total) * 100) : 0) +
-                      "%",
-                  }}
-                />
-              </div>
-            </div>
-            <span
-              className={cn(
-                "ml-auto flex items-center gap-1.5 rounded-full px-2 py-1 text-[12px]",
-                d.health === "healthy"
-                  ? "bg-emerald-50 text-emerald-700"
-                  : d.health === "unknown"
-                    ? "bg-zinc-100 text-muted-foreground"
-                    : "bg-orange-50 text-orange-700",
+                  ? `${bytes(d.used)} занято в томах`
+                  : "Нет данных о заполнении"}
+              </span>
+              {!!d.volumes.length && (
+                <span className="block h-1.5 overflow-hidden rounded-full bg-zinc-100">
+                  <span
+                    className="block h-full rounded-full bg-blue-400"
+                    style={{
+                      width: `${d.total ? Math.max(0, Math.min(100, (d.used / d.total) * 100)) : 0}%`,
+                    }}
+                  />
+                </span>
               )}
-            >
-              {d.health === "healthy" ? (
-                <Check size={11} />
-              ) : d.health === "unknown" ? (
-                <CircleHelp size={11} />
-              ) : (
-                <AlertTriangle size={11} />
-              )}{" "}
-              {d.smart_state && d.smart_state !== "fresh" && d.smart_updated_at
-                ? `${healthText(d)} · ранее`
-                : healthText(d)}
+            </span>
+            <span className="col-start-1 flex min-w-0 flex-col items-start gap-1 xl:col-start-3 xl:row-start-1">
+              <span
+                className={cn(
+                  "break-words text-xs",
+                  ["warning", "failed"].includes(d.health)
+                    ? "text-orange-700"
+                    : "text-muted-foreground",
+                )}
+              >
+                {healthText(d)}
+              </span>
+              {d.smart_updated_at != null && (
+                <span className="text-[11px] text-muted-foreground">
+                  Проверка{" "}
+                  {new Date(d.smart_updated_at * 1000).toLocaleString("ru-RU")}
+                </span>
+              )}
             </span>
             <ChevronDown
               size={14}
               className={cn(
-                "text-muted-foreground transition-transform",
+                "col-start-2 row-start-1 text-muted-foreground transition-transform xl:col-start-4",
                 open === d.name && "rotate-180",
               )}
             />
           </button>
           {open === d.name && (
-            <div className="mb-4 rounded-xl bg-zinc-50 p-4 text-sm text-muted-foreground appear">
+            <div className="mb-3 min-w-0 rounded-lg bg-zinc-50 p-3 text-xs text-muted-foreground appear">
               {d.warning && <p className="mb-3 text-orange-700">{d.warning}</p>}
               <DiskDetails disk={d} />
               {d.health === "unknown" && !d.smart_state && (
@@ -1451,8 +1359,11 @@ function DiskList({
                 </p>
               )}
               {d.volumes.map((v) => (
-                <div key={v.mount} className="mb-2 flex justify-between gap-3">
-                  <code>{v.mount}</code>
+                <div
+                  key={v.mount}
+                  className="mb-2 flex min-w-0 flex-wrap justify-between gap-2"
+                >
+                  <code className="min-w-0 break-all">{v.mount}</code>
                   <span>
                     {bytes(v.used)} / {bytes(v.total)} · свободно{" "}
                     {bytes(Math.max(0, v.total - v.used))}
@@ -1668,6 +1579,7 @@ createRoot(document.getElementById("root")!).render(
         {(Object.entries(viewPaths) as [View, string][]).map(([view, path]) => (
           <Route key={view} path={path} element={<App view={view} />} />
         ))}
+        <Route path="/network" element={<Navigate to="/" replace />} />
         <Route path="/servers/:serverId" element={<App view="servers" />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
@@ -1683,55 +1595,32 @@ function HostDetails({ host }: { host: Host }) {
     );
   return (
     <div className="space-y-6">
-      {m.diagnostics &&
-        Object.entries(m.diagnostics).map(([key, value]) => (
-          <p
-            key={key}
-            role="status"
-            className="rounded-lg bg-orange-50 p-3 text-sm text-orange-700"
-          >
-            {key}: {value}
-          </p>
-        ))}
-      {!host.online && (
-        <div
-          role="status"
-          className="rounded-lg bg-orange-50 p-3 text-sm text-orange-700"
-        >
-          Сервер недоступен. Последние данные:{" "}
-          {new Date(m.timestamp * 1000).toLocaleString("ru-RU")}. {host.error}
-        </div>
-      )}
-      <div className="grid grid-cols-2 gap-5 rounded-xl bg-zinc-50 p-4">
-        <Meter
-          label="CPU"
-          value={host.online ? m.cpu.usage : null}
-          detail={`${m.cpu.model} · ${m.cpu.cores} потоков`}
-        />
-        <Meter
-          label="Память"
-          value={host.online ? m.memory.percent : null}
-          detail={`${bytes(m.memory.used)} / ${bytes(m.memory.total)}`}
-        />
-      </div>
       <div>
         <h3 className="mb-3 text-sm font-semibold">Система</h3>
-        <dl className="grid grid-cols-2 gap-y-3 text-sm">
+        <dl className="grid grid-cols-[minmax(0,1fr)_minmax(0,2fr)] gap-x-4 gap-y-2 text-xs">
+          <dt className="text-muted-foreground">Процессор</dt>
+          <dd className="break-words text-right">
+            {m.cpu.model} · {m.cpu.cores} потоков
+          </dd>
+          <dt className="text-muted-foreground">Оперативная память</dt>
+          <dd className="break-words text-right">{bytes(m.memory.total)}</dd>
           <dt className="text-muted-foreground">Версия агента</dt>
-          <dd className="text-right">{m.agent_version || "Неизвестна"}</dd>
+          <dd className="break-words text-right">
+            {m.agent_version || "Неизвестна"}
+          </dd>
           <dt className="text-muted-foreground">Имя хоста</dt>
-          <dd className="text-right">{m.hostname}</dd>
+          <dd className="break-words text-right">{m.hostname}</dd>
           <dt className="text-muted-foreground">Время работы</dt>
-          <dd className="text-right">
+          <dd className="break-words text-right">
             {Math.floor(m.uptime / 86400)} д.{" "}
             {Math.floor((m.uptime % 86400) / 3600)} ч.
           </dd>
           <dt className="text-muted-foreground">Сетевые интерфейсы</dt>
-          <dd className="text-right">
+          <dd className="break-words text-right">
             {m.network.interfaces.join(", ") || "Нет данных"}
           </dd>
           <dt className="text-muted-foreground">Приём / передача</dt>
-          <dd className="text-right">
+          <dd className="break-words text-right">
             {host.online
               ? `${speed(m.network.rx)} / ${speed(m.network.tx)}`
               : "—"}
@@ -1765,10 +1654,6 @@ function HostDetails({ host }: { host: Host }) {
           </div>
         </div>
       )}
-      <div>
-        <h3 className="text-sm font-semibold">Накопители · {m.disks.length}</h3>
-        <DiskList disks={m.disks} online={host.online} />
-      </div>
     </div>
   );
 }

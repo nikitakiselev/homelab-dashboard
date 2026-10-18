@@ -42,14 +42,33 @@ export function DiskStatus({ disk, online }: { disk: Disk; online: boolean }) {
       : status.label;
   return (
     <span
-      title={detail}
-      className="inline-flex min-w-[100px] items-center gap-2 whitespace-nowrap text-[12px] text-muted-foreground"
+      role="img"
+      aria-label={detail}
+      className="group/disk-status inline-flex h-4 w-4 shrink-0 cursor-help items-center justify-center"
     >
       <span
-        className={cn("h-2 w-2 shrink-0 rounded-full", status.dot)}
+        className={cn("h-2 w-2 rounded-full", status.dot)}
         aria-hidden="true"
       />
-      {status.label}
+      <span
+        aria-hidden="true"
+        className="absolute top-full left-0 z-30 hidden w-60 max-w-full pt-2 text-left group-hover/disk-status:block group-focus-visible/disk-row:block"
+      >
+        <span className="block rounded-lg border border-zinc-200 bg-white p-3 text-xs font-normal leading-5 text-zinc-900 shadow-lg">
+          <span className="flex items-center gap-2 font-semibold">
+            <span className={cn("h-2 w-2 shrink-0 rounded-full", status.dot)} />
+            {status.label}
+          </span>
+          {disk.type === "HDD" && (
+            <span className="mt-1 block text-zinc-500">{measured}</span>
+          )}
+          {disk.type === "HDD" && disk.power_error && (
+            <span className="mt-1 block break-words text-orange-700">
+              {disk.power_error}
+            </span>
+          )}
+        </span>
+      </span>
     </span>
   );
 }

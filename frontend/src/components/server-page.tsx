@@ -1,15 +1,14 @@
-import { DiskActivity } from "./disk-activity";
-import type { ReactNode } from "react";
-import { Link } from "react-router";
+import { type ReactNode } from "react";
+import { Link, useLocation } from "react-router";
 import {
   ArrowLeft,
   Cpu,
   MemoryStick,
   Monitor,
   Network,
-  Server,
   Trash2,
 } from "lucide-react";
+import { DiskActivity } from "./disk-activity";
 import { Card } from "./ui/card";
 import { Button } from "./ui/button";
 import {
@@ -28,7 +27,8 @@ export function ServerPage({
   error,
   end,
   onDelete,
-  children,
+  system,
+  disks,
 }: {
   host: Host;
   period: HistoryPeriod;
@@ -38,15 +38,23 @@ export function ServerPage({
   error: string;
   end: number;
   onDelete: () => void;
-  children: ReactNode;
+  system: ReactNode;
+  disks: ReactNode;
 }) {
   const m = host.metrics;
+  const { hash } = useLocation();
+  const section =
+    hash === "#disk-activity"
+      ? "disks"
+      : hash === "#system"
+        ? "system"
+        : "overview";
   const cards = [
     {
       title: "Процессор",
       icon: Cpu,
       value: percent(host.online ? m?.cpu.usage : null),
-      detail: m ? `${m.cpu.model} · ${m.cpu.cores} потоков` : "Нет данных",
+      detail: m ? `${m.cpu.cores} потоков · ${m.cpu.model}` : "Нет данных",
       key: "cpu" as const,
       color: "#2563eb",
     },
@@ -55,7 +63,7 @@ export function ServerPage({
       icon: MemoryStick,
       value: percent(host.online ? m?.memory.percent : null),
       detail: m
-        ? `${bytes(m.memory.used)} из ${bytes(m.memory.total)}`
+        ? `${bytes(m.memory.used)} / ${bytes(m.memory.total)}`
         : "Нет данных",
       key: "memory" as const,
       color: "#7c3aed",
@@ -64,7 +72,7 @@ export function ServerPage({
       title: "Видеокарта",
       icon: Monitor,
       value: percent(host.online ? m?.gpus[0]?.usage : null),
-      detail: m?.gpus[0]?.name || "GPU не обнаружен или данные недоступны",
+      detail: m?.gpus[0]?.name || "Данные GPU недоступны",
       key: "gpu" as const,
       color: "#d97706",
     },
@@ -72,177 +80,227 @@ export function ServerPage({
       title: "Сеть",
       icon: Network,
       value: host.online && m ? `↓ ${speed(m.network.rx)}` : "—",
-      detail: host.online && m ? `↑ ${speed(m.network.tx)}` : "Нет связи",
+      detail: host.online && m ? `↑ ${speed(m.network.tx)}` : "Нет данных",
       key: "rx" as const,
       color: "#0891b2",
     },
   ];
   return (
-    <div className="space-y-7">
+    <div className="space-y-5">
       <Link
         to="/servers"
-        className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-blue-700"
+        className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-blue-700"
       >
-        <ArrowLeft size={15} /> Все серверы
+        <ArrowLeft size={14} /> Все серверы
       </Link>
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="flex min-w-0 items-start gap-4">
-          <div className="hidden rounded-2xl border border-blue-100 bg-blue-50 p-4 text-blue-700 sm:block">
-            <Server size={28} strokeWidth={1.5} />
-          </div>
-          <div className="min-w-0">
-            <div className="mb-2 flex flex-wrap items-center gap-3">
-              <h1 className="break-words text-3xl font-semibold tracking-tight">
-                {host.name}
-              </h1>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="min-w-0 break-words text-2xl font-semibold tracking-tight">
+              {host.name}
+            </h1>
+            <span
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs",
+                host.online
+                  ? "bg-emerald-50 text-emerald-700"
+                  : "bg-orange-50 text-orange-700",
+              )}
+            >
               <span
                 className={cn(
-                  "rounded-full px-2.5 py-1 text-xs",
-                  host.online
-                    ? "bg-emerald-50 text-emerald-700"
-                    : "bg-orange-50 text-orange-700",
+                  "h-1.5 w-1.5 rounded-full",
+                  host.online ? "bg-emerald-500" : "bg-orange-500",
                 )}
-              >
-                {host.online ? "В сети" : "Недоступен"}
-              </span>
-              <span className="rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs text-muted-foreground">
-                Версия агента:{" "}
-                <span className="font-mono font-medium text-foreground">
-                  {m?.agent_version || "Неизвестна"}
-                </span>
-                {!host.online && m?.agent_version && " · последняя известная"}
-              </span>
-              {host.demo && <span className="text-xs text-blue-700">Демо</span>}
-            </div>
-            <p className="text-sm text-muted-foreground">
-              {`${host.ip}:${host.port}`} · {m?.os || "ОС неизвестна"}
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              {m
-                ? `Последние метрики: ${new Date(m.timestamp * 1000).toLocaleString("ru-RU")}`
-                : "Ожидание метрик агента"}
-            </p>
+              />
+              {host.online ? "В сети" : "Недоступен"}
+            </span>
+            {host.demo && (
+              <span className="text-xs text-muted-foreground">Демо</span>
+            )}
           </div>
+          <p className="mt-1.5 break-words text-xs leading-5 text-muted-foreground">
+            {host.ip}
+            {host.port != null ? `:${host.port}` : ""} ·{" "}
+            {m?.os || "ОС неизвестна"} · Агент{" "}
+            {m?.agent_version || "неизвестен"}
+          </p>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {m
+              ? `Последние метрики: ${new Date(m.timestamp * 1000).toLocaleString("ru-RU")}`
+              : "Ожидание метрик агента"}
+          </p>
         </div>
         {!host.demo && (
           <Button
             variant="ghost"
             size="sm"
-            className="text-red-700"
+            className="text-muted-foreground hover:text-red-700"
             onClick={onDelete}
           >
-            <Trash2 size={14} /> Удалить сервер
+            <Trash2 size={14} /> Удалить
           </Button>
         )}
       </div>
       {!host.online && (
         <p
           role="status"
-          className="rounded-xl border border-orange-100 bg-orange-50 p-4 text-sm text-orange-800"
+          className="rounded-lg border border-orange-100 bg-orange-50 px-3 py-2 text-xs leading-5 text-orange-800"
         >
-          Сервер недоступен. История сохранена; текущие показатели появятся
-          после восстановления связи. {host.error}
+          Сервер недоступен. Показаны сохранённые сведения и история.{" "}
+          {host.error}
         </p>
       )}
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {cards.map(({ title, icon: Icon, value, detail, color }) => (
-          <Card key={title} className="p-5">
-            <div className="mb-4 flex items-center gap-2 text-sm text-muted-foreground">
-              <Icon size={16} style={{ color }} />
-              {title}
-              <span className="ml-auto text-xs">Сейчас</span>
-            </div>
-            <p className="text-2xl font-semibold tracking-tight">{value}</p>
-            <p className="mt-2 break-words text-xs leading-5 text-muted-foreground">
-              {detail}
-            </p>
-          </Card>
+      {!!m?.diagnostics &&
+        Object.entries(m.diagnostics).map(([key, value]) => (
+          <p
+            key={key}
+            role="status"
+            className="rounded-lg bg-orange-50 px-3 py-2 text-xs text-orange-700"
+          >
+            {key}: {value}
+          </p>
         ))}
-      </div>
-      <section aria-labelledby="resource-history-heading" className="space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <h2 id="resource-history-heading" className="text-lg font-semibold">
-              История ресурсов
-            </h2>
-            <p className="mt-1 text-xs text-muted-foreground">
+      <nav
+        aria-label="Разделы сервера"
+        className="flex gap-5 border-b border-zinc-200"
+      >
+        {(
+          [
+            ["overview", "#overview", "Обзор"],
+            ["disks", "#disk-activity", "Накопители"],
+            ["system", "#system", "Система"],
+          ] as const
+        ).map(([id, href, label]) => (
+          <Link
+            key={id}
+            to={href}
+            aria-current={section === id ? "location" : undefined}
+            className={cn(
+              "border-b-2 px-0.5 pb-2.5 text-sm transition-colors",
+              section === id
+                ? "border-blue-600 font-medium text-blue-700"
+                : "border-transparent text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {label}
+            {id === "disks" && m && (
+              <span className="ml-1.5 text-xs text-muted-foreground">
+                {m.disks.length}
+              </span>
+            )}
+          </Link>
+        ))}
+      </nav>
+      {section === "overview" && (
+        <section
+          id="overview"
+          aria-label="Обзор ресурсов"
+          className="space-y-4"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-xs text-muted-foreground">
               {period === 1
                 ? "Интервалы по 5 минут"
                 : "Средние значения за 6 часов"}{" "}
-              · Пропуски в наблюдениях показаны разрывами
+              · Пропуски показаны разрывами
             </p>
+            <PeriodSelector value={period} onChange={onPeriodChange} />
           </div>
-          <PeriodSelector value={period} onChange={onPeriodChange} />
-        </div>
-        {host.history_error && (
-          <p role="status" className="text-sm text-orange-700">
-            {host.history_error}
-          </p>
-        )}
-        <div className="grid gap-4 xl:grid-cols-2">
-          {cards.map(({ title, icon: Icon, key, color }) => (
-            <Card key={key} className="min-w-0 p-5">
-              <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold">
-                <Icon size={16} style={{ color }} />
-                {title}
-                <span className="ml-auto text-xs font-normal text-muted-foreground">
-                  {key === "rx" ? "Байт/с" : "Загрузка, %"}
-                </span>
-              </h3>
-              <HistoryChart
-                records={records}
-                period={period}
-                end={end}
-                loading={loading}
-                error={error}
-                series={
-                  key === "rx"
-                    ? [
-                        { key: "rx", label: "Приём", color },
-                        { key: "tx", label: "Передача", color: "#059669" },
-                      ]
-                    : [{ key, label: title, color }]
-                }
-                emptyText={
-                  key === "gpu"
-                    ? "Нет данных о загрузке GPU за выбранный период."
-                    : undefined
-                }
-              />
-              <div className="mt-3 border-t border-black/5 pt-3 text-xs text-muted-foreground">
-                {key === "rx" ? (
-                  <div className="flex flex-wrap justify-between gap-2">
-                    <span>Приём · Передача</span>
+          {host.history_error && (
+            <p role="status" className="text-xs text-orange-700">
+              {host.history_error}
+            </p>
+          )}
+          <div className="grid min-w-0 gap-3 lg:grid-cols-2">
+            {cards.map(({ title, icon: Icon, value, detail, key, color }) => (
+              <Card key={key} className="min-w-0 p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <h2 className="flex items-center gap-2 text-sm font-semibold">
+                    <Icon size={14} style={{ color }} />
+                    {title}
+                  </h2>
+                  <span className="text-base font-semibold tracking-tight">
+                    {value}
+                  </span>
+                </div>
+                <p
+                  title={detail}
+                  className="mt-1 mb-2 truncate text-xs text-muted-foreground"
+                >
+                  {detail}
+                </p>
+                <HistoryChart
+                  records={records}
+                  period={period}
+                  end={end}
+                  loading={loading}
+                  error={error}
+                  height={180}
+                  series={
+                    key === "rx"
+                      ? [
+                          { key: "rx", label: "Приём", color },
+                          { key: "tx", label: "Передача", color: "#059669" },
+                        ]
+                      : [{ key, label: title, color }]
+                  }
+                  emptyText={
+                    key === "gpu"
+                      ? "Нет данных о загрузке GPU за выбранный период."
+                      : undefined
+                  }
+                />
+                <div className="mt-2 flex flex-wrap justify-between gap-2 border-t border-zinc-100 pt-2 text-[11px] text-muted-foreground">
+                  <span>
+                    {key === "rx"
+                      ? "Приём · Передача"
+                      : key === "gpu"
+                        ? "Первая видеокарта · загрузка, %"
+                        : "Загрузка, %"}
+                  </span>
+                  {key === "rx" && (
                     <span>
                       За период: ↓{" "}
-                      {bytes(records.reduce((s, p) => s + p.rx_bytes, 0))} · ↑{" "}
-                      {bytes(records.reduce((s, p) => s + p.tx_bytes, 0))}
+                      {records.some((p) => p.rx != null)
+                        ? bytes(records.reduce((sum, p) => sum + p.rx_bytes, 0))
+                        : "—"}{" "}
+                      · ↑{" "}
+                      {records.some((p) => p.tx != null)
+                        ? bytes(records.reduce((sum, p) => sum + p.tx_bytes, 0))
+                        : "—"}
                     </span>
-                  </div>
-                ) : key === "gpu" ? (
-                  "История первой видеокарты сервера"
-                ) : key === "memory" ? (
-                  "Доля занятой оперативной памяти"
-                ) : (
-                  "Общая загрузка процессора"
-                )}
-              </div>
-            </Card>
-          ))}
+                  )}
+                </div>
+              </Card>
+            ))}
+          </div>
+        </section>
+      )}
+      {section === "disks" && (
+        <div className="space-y-4">
+          <Card className="px-4">{disks}</Card>
+          {host.history_error && (
+            <p role="status" className="text-xs text-orange-700">
+              {host.history_error}
+            </p>
+          )}
+          <DiskActivity
+            onPeriodChange={onPeriodChange}
+            host={host}
+            records={records}
+            period={period}
+            end={end}
+            loading={loading}
+            error={error}
+          />
         </div>
-      </section>
-      <DiskActivity
-        host={host}
-        records={records}
-        period={period}
-        end={end}
-        loading={loading}
-        error={error}
-      />
-      <Card className="p-5 sm:p-6">
-        <h2 className="mb-5 text-lg font-semibold">О сервере</h2>
-        {children}
-      </Card>
+      )}
+      {section === "system" && (
+        <Card id="system" className="p-4">
+          {system}
+        </Card>
+      )}
     </div>
   );
 }
