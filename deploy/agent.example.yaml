@@ -1,6 +1,6 @@
 # /etc/homelab/agent.yaml — token is stored separately in agent.env.
 server:
-  bind: 0.0.0.0
+  bind: 127.0.0.1
   port: 9108
 collection:
   interval_seconds: 5

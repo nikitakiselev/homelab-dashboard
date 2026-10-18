@@ -111,6 +111,8 @@ curl -fsSL https://raw.githubusercontent.com/nikitakiselev/homelab-dashboard/mai
 
 The installer checks the system, installs dependencies, configures automatic startup, and verifies the HTTP API. For the central service, it also builds the interface. It prints the address and access token when finished. Running it again updates the code while preserving configuration and SQLite history. If the updated central service fails its health check, the installer restores the previous code and service configuration.
 
+Agents listen on `127.0.0.1:9108` by default. For a remote dashboard (including a bridge container), explicitly set `server.bind` in `/etc/homelab/agent.yaml` to the agent host's LAN/VPN address and run `sudo homelab-agent restart`. Allow access only from the dashboard; do not expose the HTTP API to the internet. Upgrades preserve existing YAML, so change an old `bind: 0.0.0.0` manually.
+
 After installing an agent, click **«Добавить сервер»** in the dashboard and enter its IP address and the token printed by the installer. To show these details again, run `sudo homelab-agent connection-info` on the agent host. Agents do not need Python, Node.js, or frontend files. Use `sudo homelab-agent upgrade` to update an installed agent with API verification and rollback.
 
 Details (Russian): [installation and updates](docs/installation.md) · [YAML configuration](docs/configuration.md).

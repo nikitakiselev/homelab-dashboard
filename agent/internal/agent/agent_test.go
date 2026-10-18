@@ -10,6 +10,59 @@ import (
 	"time"
 )
 
+func TestConfigDefaultsToLoopback(t *testing.T) {
+	c, err := LoadConfig("")
+	if err != nil || c.Server.Bind != "127.0.0.1" {
+		t.Fatalf("default listener is not loopback: %+v, %v", c.Server, err)
+	}
+	for _, tc := range []struct{ raw, bind string }{
+		{"", "127.0.0.1"},
+		{"server:\n  port: 19108\n", "127.0.0.1"},
+		{"server:\n  bind: 192.0.2.10\n", "192.0.2.10"},
+		{"server:\n  bind: 0.0.0.0\n", "0.0.0.0"},
+	} {
+		p := filepath.Join(t.TempDir(), "agent.yaml")
+		if err := os.WriteFile(p, []byte(tc.raw), 0600); err != nil {
+			t.Fatal(err)
+		}
+		c, err := LoadConfig(p)
+		if err != nil || c.Server.Bind != tc.bind {
+			t.Fatalf("%q: %+v, %v", tc.raw, c.Server, err)
+		}
+	}
+}
+
+func TestInitUsesLoopbackAndPreservesExplicitListener(t *testing.T) {
+	dir := t.TempDir()
+	config, env := filepath.Join(dir, "agent.yaml"), filepath.Join(dir, "agent.env")
+	if err := Init(config, env); err != nil {
+		t.Fatal(err)
+	}
+	c, err := LoadConfig(config)
+	if err != nil || c.Server.Bind != "127.0.0.1" {
+		t.Fatalf("new installation is not local only: %+v, %v", c.Server, err)
+	}
+	// Existing listeners must survive reinstallation, including old wildcard binds.
+	raw := "server:\n  bind: 0.0.0.0\n  port: 19108\n"
+	if err := os.WriteFile(config, []byte(raw), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := Init(config, env); err != nil {
+		t.Fatal(err)
+	}
+	after, err := os.ReadFile(config)
+	if err != nil || string(after) != raw {
+		t.Fatalf("existing listener was changed: %q, %v", after, err)
+	}
+}
+
+func TestExampleConfigUsesLoopback(t *testing.T) {
+	c, err := LoadConfig("../../../deploy/agent.example.yaml")
+	if err != nil || c.Server.Bind != "127.0.0.1" {
+		t.Fatalf("example listener is not loopback: %+v, %v", c.Server, err)
+	}
+}
+
 func TestConfigRejectsInvalidYAML(t *testing.T) {
 	for _, raw := range []string{"server:\n  port: 0", "server:\n  port: 9108\n  port: 9109", "server:\n  unknown: true", "server:\n  port: '9108'", "collection:\n  interval_seconds: .nan", "collection:\n  disks:\n    enabled: 'false'", "network:\n  interfaces: [false]", "history:\n  retention_days: false", "history: null", "token: secret", "server: {}\n---\nserver: {}"} {
 		t.Run(raw, func(t *testing.T) {
@@ -161,7 +214,7 @@ func TestConnectionInfoShowsStoredTokenWithoutQueryingService(t *testing.T) {
 	if err = showConnectionInfo(&out, c, env); err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"IP address: 127.0.0.1", "Port:       19108", "Token:      " + token} {
+	for _, want := range []string{"IP address: 127.0.0.1", "Port:       19108", "Token:      " + token, "Local access only", "Set server.bind to a LAN/VPN IP"} {
 		if !strings.Contains(out.String(), want) {
 			t.Fatalf("missing %q in output:\n%s", want, out.String())
 		}

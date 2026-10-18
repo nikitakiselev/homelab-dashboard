@@ -47,7 +47,7 @@ type Config struct {
 
 func DefaultConfig() Config {
 	var c Config
-	c.Server.Bind = "0.0.0.0"
+	c.Server.Bind = "127.0.0.1"
 	c.Server.Port = 9108
 	c.Collection.Interval = 5
 	c.Collection.Disks = DiskConfig{true, 60, true}

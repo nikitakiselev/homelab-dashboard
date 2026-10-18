@@ -76,6 +76,11 @@ func connectionSummary(w io.Writer, header []string, hostname string, addresses 
 		}
 	}
 	lines = append(lines, "Port:       "+strconv.Itoa(port), "Token:      "+token, "", "Add this host to your dashboard using the details above.")
+	if len(addresses) == 1 {
+		if ip := net.ParseIP(addresses[0]); (ip != nil && ip.IsLoopback()) || addresses[0] == "localhost" {
+			lines = append(lines, "Local access only. For a remote dashboard:", "Set server.bind to a LAN/VPN IP in /etc/homelab/agent.yaml,", "then run: sudo homelab-agent restart")
+		}
+	}
 	width := 0
 	for _, line := range lines {
 		width = max(width, utf8.RuneCountInString(line))
