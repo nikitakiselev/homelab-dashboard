@@ -7,6 +7,8 @@ export function getDiskStatus(
 ) {
   const unknown = { label: "Неизвестно", dot: "bg-amber-400" };
   if (!online) return { ...unknown, label: "Нет связи" };
+  if (disk.smart_state === "not_applicable")
+    return { label: "Виртуальный носитель", dot: "bg-zinc-400" };
   if (disk.health === "failed")
     return { label: "Ошибка SMART", dot: "bg-red-500" };
   if (disk.type !== "HDD") {

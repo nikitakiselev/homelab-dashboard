@@ -123,7 +123,7 @@ func collectScheduledSMART(ctx context.Context, disks []Disk, activity map[strin
 		// Account for time spent on earlier devices in this batch.
 		observedAt := now.Add(time.Since(started))
 		d := &disks[i]
-		if d.Serial == "" || d.Type == "NVMe" {
+		if d.Serial == "" || d.Type == "NVMe" || d.Type == "USB Gadget" {
 			continue
 		}
 		key := smartIdentity(*d)

@@ -1237,6 +1237,7 @@ function Meter({
   );
 }
 function healthText(d: Disk) {
+  if (d.smart_state === "not_applicable") return "SMART неприменим";
   if (d.health === "healthy") return "В норме";
   if (d.health === "warning") return "Проверить";
   if (d.health === "failed") return "Критическое";
@@ -1269,6 +1270,8 @@ function diskSampleTime(value?: number | null) {
 }
 function smartPolicyText(state: string) {
   const messages: Record<string, string> = {
+    not_applicable:
+      "Виртуальный USB-носитель (например, KVM). SMART и состояние питания неприменимы и не опрашиваются.",
     passive:
       "Автоматический ATA SMART-опрос отключён или диск не входит в разрешённый список. Показаны метаданные и сохранённые показатели.",
     sleeping:
@@ -1295,28 +1298,37 @@ function smartPolicyText(state: string) {
 function DiskDetails({ disk: d }: { disk: Disk }) {
   const number = (value?: number | null, suffix = "") =>
     value == null ? "—" : value.toLocaleString("ru-RU") + suffix;
+  const virtual = d.type === "USB Gadget";
   const rows = [
     ["Серийный номер", d.serial || "—"],
     ["Прошивка", d.firmware || "—"],
     ["Интерфейс", d.interface?.toUpperCase() || "—"],
-    [
-      "Скорость вращения",
-      d.type === "HDD" ? number(d.rotation_rate, " об/мин") : "Без вращения",
-    ],
-    ["Наработка", number(d.power_on_hours, " ч")],
-    ["Включения", number(d.power_cycles)],
-    ["Запуски и остановки шпинделя", number(d.start_stop_count)],
-    ["Циклы загрузки/выгрузки головок", number(d.load_cycle_count)],
-    ...(d.type === "NVMe"
-      ? [
-          ["Израсходованный ресурс", number(d.percentage_used, "%")],
-          ["Доступный резерв", number(d.available_spare, "%")],
-          ["Ошибки носителя", number(d.media_errors)],
-        ]
+    ...(virtual
+      ? []
       : [
-          ["Переназначенные секторы", number(d.reallocated_sectors)],
-          ["Ожидающие секторы", number(d.pending_sectors)],
-          ["Неисправимые секторы", number(d.uncorrectable_sectors)],
+          [
+            "Скорость вращения",
+            d.type === "HDD"
+              ? number(d.rotation_rate, " об/мин")
+              : d.type === "SSD" || d.type === "NVMe"
+                ? "Без вращения"
+                : "—",
+          ],
+          ["Наработка", number(d.power_on_hours, " ч")],
+          ["Включения", number(d.power_cycles)],
+          ["Запуски и остановки шпинделя", number(d.start_stop_count)],
+          ["Циклы загрузки/выгрузки головок", number(d.load_cycle_count)],
+          ...(d.type === "NVMe"
+            ? [
+                ["Израсходованный ресурс", number(d.percentage_used, "%")],
+                ["Доступный резерв", number(d.available_spare, "%")],
+                ["Ошибки носителя", number(d.media_errors)],
+              ]
+            : [
+                ["Переназначенные секторы", number(d.reallocated_sectors)],
+                ["Ожидающие секторы", number(d.pending_sectors)],
+                ["Неисправимые секторы", number(d.uncorrectable_sectors)],
+              ]),
         ]),
   ];
   return (
@@ -1324,7 +1336,9 @@ function DiskDetails({ disk: d }: { disk: Disk }) {
       {d.smart_state && (
         <div className="mb-4 space-y-1 text-[12px]">
           <p>{smartPolicyText(d.smart_state)}</p>
-          <p>Данные SMART: {diskSampleTime(d.smart_updated_at)}</p>
+          {!virtual && (
+            <p>Данные SMART: {diskSampleTime(d.smart_updated_at)}</p>
+          )}
           {d.smart_attempt_at != null && (
             <p>Последняя попытка: {diskSampleTime(d.smart_attempt_at)}</p>
           )}
@@ -1370,7 +1384,9 @@ function DiskList({
             <div className="min-w-[130px] flex-1">
               <div className="text-sm font-medium">{d.model}</div>
               <div className="mt-1 text-[12px] text-muted-foreground">
-                /dev/{d.name} · {d.type} · {bytes(d.total)}
+                /dev/{d.name} ·{" "}
+                {d.type === "Unknown" ? "Тип неизвестен" : d.type} ·{" "}
+                {bytes(d.total)}
                 {d.temperature != null
                   ? ` · ${d.temperature} °C${d.smart_state && d.smart_state !== "fresh" ? " (ранее)" : ""}`
                   : ""}

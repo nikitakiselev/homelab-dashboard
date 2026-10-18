@@ -6,7 +6,47 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 )
+
+func TestUSBGadgetNeverProbedOrGivenCachedSMART(t *testing.T) {
+	h, _ := testSMARTStore(t)
+	defer h.Close()
+	old := smartTestDisk()
+	old.Model, old.Interface = "File-Stor Gadget", "usb"
+	old.Health, old.SMARTUpdatedAt = "healthy", ptr(100)
+	old.PowerCheckedAt, old.Temperature = ptr(100), ptr(32)
+	old.Volumes = []Volume{{"/cached", 1000, 600}}
+	key := smartIdentity(old)
+	if _, err := h.reserveSMART(key, smartRecord{Raw: []byte(smartTestJSON), SampleAt: 100}, 0); err != nil {
+		t.Fatal(err)
+	}
+	run := func(ctx context.Context, args ...string) ([]byte, error) {
+		if args[0] != "lsblk" {
+			t.Fatalf("gadget device command: %v", args)
+		}
+		return []byte(`{"blockdevices":[{"name":"sdb","type":"disk","size":1000,"model":"File-Stor Gadget","serial":"TEST-1","rota":true,"tran":"usb","mountpoints":["/"]}]}`), nil
+	}
+	disks, err := readDisks(context.Background(), []Disk{old}, run)
+	if err != nil || len(disks) != 1 {
+		t.Fatalf("%v %v", disks, err)
+	}
+	now := time.Unix(1700000000, 0)
+	noCommand := func(ctx context.Context, args ...string) ([]byte, error) {
+		t.Fatalf("gadget command with explicit SMART opt-in: %v", args)
+		return nil, nil
+	}
+	if err := collectScheduledSMART(context.Background(), disks, map[string]time.Time{"sdb": now}, now, smartTestConfig(), h, noCommand); err != nil {
+		t.Fatal(err)
+	}
+	if err := collectDiskPower(context.Background(), disks, now, DiskConfig{Enabled: true, PowerState: true, Interval: 60}, h, noCommand); err != nil {
+		t.Fatal(err)
+	}
+	d := disks[0]
+	if d.Type != "USB Gadget" || d.SMARTState != "not_applicable" || d.Health != "unknown" || d.SMARTUpdatedAt != nil || d.PowerCheckedAt != nil || d.Temperature != nil || len(d.Volumes) != 0 {
+		t.Fatalf("gadget inherited physical disk data: %+v", d)
+	}
+}
 
 func TestSMARTWarningsAndUnknownData(t *testing.T) {
 	for _, test := range []struct{ raw, health string }{

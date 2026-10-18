@@ -58,7 +58,8 @@ func readDisks(ctx context.Context, previous []Disk, run func(context.Context, .
 			passiveFilesystems = true
 			continue
 		}
-		knownSSD := strings.HasPrefix(d.Name, "nvme") || string(d.Rota) == "false" || string(d.Rota) == "0" || string(d.Rota) == "\"0\""
+		kind := classifyDisk(d.Name, d.Model, d.Tran, d.Rota)
+		knownSSD := kind == "NVMe" || kind == "SSD"
 		if d.Type == "disk" && !knownSSD && !strings.HasPrefix(d.Name, "loop") && !strings.HasPrefix(d.Name, "ram") && !strings.HasPrefix(d.Name, "zram") {
 			passiveFilesystems = true
 		}
@@ -89,25 +90,27 @@ func readDisks(ctx context.Context, previous []Disk, run func(context.Context, .
 			}
 		}
 		walk(d)
-		disk := Disk{Name: d.Name, Model: strings.TrimSpace(d.Model), Type: "HDD", Total: uint64(number(strings.Trim(string(d.Size), "\""))), Health: "unknown", Volumes: []Volume{}}
+		disk := Disk{Name: d.Name, Model: strings.TrimSpace(d.Model), Type: classifyDisk(d.Name, d.Model, d.Tran, d.Rota), Total: uint64(number(strings.Trim(string(d.Size), "\""))), Health: "unknown", Volumes: []Volume{}}
 		if disk.Model == "" {
 			disk.Model = d.Name
-		}
-		if strings.HasPrefix(d.Name, "nvme") {
-			disk.Type = "NVMe"
-		} else if string(d.Rota) == "false" || string(d.Rota) == "0" || string(d.Rota) == "\"0\"" {
-			disk.Type = "SSD"
 		}
 		disk.Serial, disk.Firmware, disk.Interface = strings.TrimSpace(d.Serial), strings.TrimSpace(d.Rev), d.Tran
 		// Reuse samples only when the physical identity matches; never just /dev/sdX.
 		for _, old := range previous {
 			if disk.Serial != "" && old.Serial == disk.Serial && old.Model == disk.Model && old.Total == disk.Total {
 				disk = old
-				disk.Name, disk.Interface = d.Name, d.Tran
+				disk.Name, disk.Interface, disk.Type = d.Name, d.Tran, classifyDisk(d.Name, d.Model, d.Tran, d.Rota)
 				break
 			}
 		}
 		disk.PowerState, disk.SMARTState = "unknown", "unavailable"
+		if disk.Type == "USB Gadget" {
+			// Gadget storage exposes a file/image, not physical SMART or power.
+			// Do not reuse a sample cached under an older classification.
+			disk = Disk{Name: disk.Name, Model: disk.Model, Serial: disk.Serial, Firmware: disk.Firmware, Interface: disk.Interface, Type: disk.Type, Total: disk.Total, Health: "unknown", PowerState: "unknown", SMARTState: "not_applicable", Volumes: []Volume{}}
+			disks = append(disks, disk)
+			continue
+		}
 		// Even a standby-guarded SMART request can reset an awake HDD's idle
 		// timer or unpark its heads. Never poll ATA/SATA/USB devices.
 		if args := diskSMARTArgs(disk.Name, d.Tran); args != nil {
