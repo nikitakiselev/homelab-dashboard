@@ -7,6 +7,8 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    env:
+      GOTOOLCHAIN: go1.27.3
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -15,6 +17,13 @@ jobs:
           cache-dependency-path: agent/go.sum
       - run: go test -race ./...
         working-directory: agent
+      - name: Scan Linux source before release
+        working-directory: agent
+        run: |
+          go version
+          go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 govulncheck ./...
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 govulncheck ./...
       - name: Build Linux binaries
         working-directory: agent
         env:
@@ -23,6 +32,10 @@ jobs:
           version="${GITHUB_REF_NAME#agent-v}"
           for arch in amd64 arm64; do
             GOOS=linux GOARCH="$arch" go build -trimpath -ldflags="-s -w -X github.com/nikitakiselev/homelab-dashboard/agent/internal/agent.Version=$version" -o "../releases/homelab-agent_linux_$arch" ./cmd/homelab-agent
+          done
+          for binary in ../releases/homelab-agent_linux_*; do
+            go version -m "$binary"
+            govulncheck -mode=binary "$binary"
           done
           cd ../releases
           sha256sum homelab-agent_linux_* > SHA256SUMS
