@@ -138,10 +138,15 @@ function App({ view }: { view: View }) {
     }
   }, [request]);
   useEffect(() => {
+    if (view === "home") {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
     load();
     const t = setInterval(load, 10000);
     return () => clearInterval(t);
-  }, [load]);
+  }, [load, view]);
   const eligible = hosts.filter((h) => showDemo || !h.demo);
   const visible = eligible.filter(
     (h) =>
@@ -215,165 +220,179 @@ function App({ view }: { view: View }) {
     allDisks.length > 0 && allDisks.every((d) => d.smart_state === "passive");
   return (
     <div className="min-h-screen lg:flex">
-      <aside className="fixed inset-y-0 left-0 z-20 hidden w-[218px] flex-col border-r border-black/[0.055] bg-white px-4 py-7 lg:flex">
-        <Link
-          to="/"
-          className="mb-10 flex items-center gap-2.5 px-3 no-underline text-inherit"
-        >
-          <div className="flex h-8 w-8 items-center justify-center rounded-[10px] bg-[#27292e] text-white shadow-sm">
-            <Command size={18} />
-          </div>
-          <span className="text-[19px] font-semibold tracking-[-.7px]">
-            homelab<span className="text-blue-700">.</span>
-          </span>
-        </Link>
-        <div className="eyebrow mb-3 px-3">Навигация</div>
-        <nav className="space-y-1">
-          {(
-            [
-              ["home", House],
-              ["overview", LayoutGrid],
-              ["servers", Server],
-              ["storage", HardDrive],
-            ] as const
-          ).map(([id, Icon]) => (
-            <Link
-              key={id}
-              to={viewPaths[id]}
-              aria-current={view === id ? "page" : undefined}
-              className={cn(
-                "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-[14px] transition-colors cursor-pointer",
-                view === id
-                  ? "bg-blue-50 font-semibold text-blue-700"
-                  : "text-muted-foreground hover:bg-black/3",
-              )}
-            >
-              <Icon
-                size={17}
-                strokeWidth={1.7}
-                className={view === id ? "text-blue-700" : ""}
-              />
-              {labels[id]}
-              {id === "servers" && (
-                <span className="ml-auto rounded bg-black/4 px-1.5 text-[12px] text-muted-foreground">
-                  {visible.length}
-                </span>
-              )}
-            </Link>
-          ))}
-        </nav>
-        {dashboardVersion && (
-          <div
-            className="mt-6 px-3 text-[11px] text-muted-foreground"
-            title={dashboardVersion.commit || undefined}
+      {view !== "home" && (
+        <aside className="fixed inset-y-0 left-0 z-20 hidden w-[218px] flex-col border-r border-black/[0.055] bg-white px-4 py-7 lg:flex">
+          <Link
+            to="/"
+            className="mb-10 flex items-center gap-2.5 px-3 no-underline text-inherit"
           >
-            Dashboard{" "}
-            {dashboardVersion.version === "development"
-              ? "· разработка"
-              : `v${dashboardVersion.version}`}
-            {dashboardVersion.commit && (
-              <span className="ml-1">
-                · {dashboardVersion.commit.slice(0, 7)}
-              </span>
-            )}
-          </div>
-        )}
-        {token && (
-          <div className="mt-auto pt-6">
-            <Button
-              variant="ghost"
-              className="w-full justify-start text-muted-foreground"
-              onClick={() => {
-                sessionStorage.removeItem("homelab-token");
-                setToken("");
-                setAuth(true);
-              }}
-            >
-              <LogOut size={16} className="shrink-0" />
-              Выйти
-            </Button>
-          </div>
-        )}
-      </aside>
-      <main className="min-w-0 flex-1 lg:ml-[218px]">
-        <header className="flex h-[56px] items-center justify-between gap-4 border-b border-black/[0.05] bg-white/60 px-5 lg:px-9">
-          <div className="flex items-center gap-2 text-sm">
-            <span className="text-muted-foreground">Homelab</span>
-            <ChevronRight size={12} className="text-muted-foreground" />
-            <Link to={viewPaths[view]}>{labels[view]}</Link>
-            {detailId && (
-              <>
-                <ChevronRight size={12} className="text-muted-foreground" />
-                <span className="truncate">{detail?.name || "Сервер"}</span>
-              </>
-            )}
-          </div>
-          <div className="flex items-center gap-4">
-            <div
-              tabIndex={0}
-              aria-describedby="last-update-tooltip"
-              className="group/update relative hidden cursor-help items-center gap-2 rounded text-sm text-muted-foreground focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-blue-600 sm:flex"
-            >
-              <span
-                className={cn(
-                  "h-1.5 w-1.5 rounded-full",
-                  error ? "bg-orange-400" : "bg-emerald-500",
-                )}
-              />
-              {updated ? "Метрики · каждые 10 секунд" : "Подключение…"}
-              <span
-                id="last-update-tooltip"
-                role="tooltip"
-                className="absolute top-full right-0 z-30 hidden w-64 pt-2 group-hover/update:block group-focus-within/update:block"
-              >
-                <span className="block rounded-lg border border-zinc-200 bg-white p-3 text-xs leading-5 text-foreground shadow-lg">
-                  {updated
-                    ? `Последнее обновление: ${new Date(updated * 1000).toLocaleString("ru-RU")}`
-                    : "Данные ещё не получены"}
-                </span>
-              </span>
+            <div className="flex h-8 w-8 items-center justify-center rounded-[10px] bg-[#27292e] text-white shadow-sm">
+              <Command size={18} />
             </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label="Обновить метрики"
-              onClick={() => {
-                setRefreshing(true);
-                load();
-              }}
-            >
-              <RefreshCw
-                size={15}
-                className={cn("text-muted-foreground", refreshing && "spinner")}
-              />
-            </Button>
-          </div>
-        </header>
-        <nav className="flex gap-1 overflow-x-auto border-b border-black/5 bg-white/50 px-4 py-2 lg:hidden">
-          {(Object.keys(labels) as View[]).map((v) => (
-            <Button
-              key={v}
-              variant={v === view ? "default" : "ghost"}
-              size="sm"
-              asChild
-            >
+            <span className="text-[19px] font-semibold tracking-[-.7px]">
+              homelab<span className="text-blue-700">.</span>
+            </span>
+          </Link>
+          <div className="eyebrow mb-3 px-3">Навигация</div>
+          <nav className="space-y-1">
+            {(
+              [
+                ["home", House],
+                ["overview", LayoutGrid],
+                ["servers", Server],
+                ["storage", HardDrive],
+              ] as const
+            ).map(([id, Icon]) => (
               <Link
-                to={viewPaths[v]}
-                aria-current={view === v ? "page" : undefined}
+                key={id}
+                to={viewPaths[id]}
+                aria-current={view === id ? "page" : undefined}
+                className={cn(
+                  "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-[14px] transition-colors cursor-pointer",
+                  view === id
+                    ? "bg-blue-50 font-semibold text-blue-700"
+                    : "text-muted-foreground hover:bg-black/3",
+                )}
               >
-                {labels[v]}
+                <Icon
+                  size={17}
+                  strokeWidth={1.7}
+                  className={view === id ? "text-blue-700" : ""}
+                />
+                {labels[id]}
+                {id === "servers" && (
+                  <span className="ml-auto rounded bg-black/4 px-1.5 text-[12px] text-muted-foreground">
+                    {visible.length}
+                  </span>
+                )}
               </Link>
-            </Button>
-          ))}
-        </nav>
-        <div className="mx-auto max-w-[1510px] px-4 py-5 lg:px-6 lg:py-6">
+            ))}
+          </nav>
+          {dashboardVersion && (
+            <div
+              className="mt-6 px-3 text-[11px] text-muted-foreground"
+              title={dashboardVersion.commit || undefined}
+            >
+              Dashboard{" "}
+              {dashboardVersion.version === "development"
+                ? "· разработка"
+                : `v${dashboardVersion.version}`}
+              {dashboardVersion.commit && (
+                <span className="ml-1">
+                  · {dashboardVersion.commit.slice(0, 7)}
+                </span>
+              )}
+            </div>
+          )}
+          {token && (
+            <div className="mt-auto pt-6">
+              <Button
+                variant="ghost"
+                className="w-full justify-start text-muted-foreground"
+                onClick={() => {
+                  sessionStorage.removeItem("homelab-token");
+                  setToken("");
+                  setAuth(true);
+                }}
+              >
+                <LogOut size={16} className="shrink-0" />
+                Выйти
+              </Button>
+            </div>
+          )}
+        </aside>
+      )}
+
+      <main
+        className={cn("min-w-0 flex-1", view !== "home" && "lg:ml-[218px]")}
+      >
+        {view !== "home" && (
+          <>
+            <header className="flex h-[56px] items-center justify-between gap-4 border-b border-black/[0.05] bg-white/60 px-5 lg:px-9">
+              <div className="flex items-center gap-2 text-sm">
+                <span className="text-muted-foreground">Homelab</span>
+                <ChevronRight size={12} className="text-muted-foreground" />
+                <Link to={viewPaths[view]}>{labels[view]}</Link>
+                {detailId && (
+                  <>
+                    <ChevronRight size={12} className="text-muted-foreground" />
+                    <span className="truncate">{detail?.name || "Сервер"}</span>
+                  </>
+                )}
+              </div>
+              <div className="flex items-center gap-4">
+                <div
+                  tabIndex={0}
+                  aria-describedby="last-update-tooltip"
+                  className="group/update relative hidden cursor-help items-center gap-2 rounded text-sm text-muted-foreground focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-blue-600 sm:flex"
+                >
+                  <span
+                    className={cn(
+                      "h-1.5 w-1.5 rounded-full",
+                      error ? "bg-orange-400" : "bg-emerald-500",
+                    )}
+                  />
+                  {updated ? "Метрики · каждые 10 секунд" : "Подключение…"}
+                  <span
+                    id="last-update-tooltip"
+                    role="tooltip"
+                    className="absolute top-full right-0 z-30 hidden w-64 pt-2 group-hover/update:block group-focus-within/update:block"
+                  >
+                    <span className="block rounded-lg border border-zinc-200 bg-white p-3 text-xs leading-5 text-foreground shadow-lg">
+                      {updated
+                        ? `Последнее обновление: ${new Date(updated * 1000).toLocaleString("ru-RU")}`
+                        : "Данные ещё не получены"}
+                    </span>
+                  </span>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Обновить метрики"
+                  onClick={() => {
+                    setRefreshing(true);
+                    load();
+                  }}
+                >
+                  <RefreshCw
+                    size={15}
+                    className={cn(
+                      "text-muted-foreground",
+                      refreshing && "spinner",
+                    )}
+                  />
+                </Button>
+              </div>
+            </header>
+            <nav className="flex gap-1 overflow-x-auto border-b border-black/5 bg-white/50 px-4 py-2 lg:hidden">
+              {(Object.keys(labels) as View[]).map((v) => (
+                <Button
+                  key={v}
+                  variant={v === view ? "default" : "ghost"}
+                  size="sm"
+                  asChild
+                >
+                  <Link
+                    to={viewPaths[v]}
+                    aria-current={view === v ? "page" : undefined}
+                  >
+                    {labels[v]}
+                  </Link>
+                </Button>
+              ))}
+            </nav>{" "}
+          </>
+        )}
+
+        <div
+          className={
+            view === "home"
+              ? undefined
+              : "mx-auto max-w-[1510px] px-4 py-5 lg:px-6 lg:py-6"
+          }
+        >
           {view === "home" ? (
-            <Launchpad
-              request={request}
-              hosts={eligible}
-              hostsLoading={loading}
-              hostsError={error}
-            />
+            <Launchpad request={request} />
           ) : (
             <>
               {!detailId && (

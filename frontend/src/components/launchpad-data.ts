@@ -9,13 +9,30 @@ export type Application = {
   icon: string;
   group_id: string | null;
   position: number;
+  launchpad_position: number;
 };
-export type ApplicationDraft = Omit<Application, "id" | "position">;
+export type ApplicationDraft = Omit<
+  Application,
+  "id" | "position" | "launchpad_position"
+>;
 export type Catalogue = {
   groups: ApplicationGroup[];
   applications: Application[];
 };
 export type ApiRequest = (path: string, options?: RequestInit) => Promise<any>;
+
+export const OVERVIEW_APPLICATION: Application = {
+  id: "builtin-overview",
+  name: "Homelab",
+  url: "/overview",
+  local_url: "",
+  external_url: "",
+  external_access: "unknown",
+  icon: "homelab",
+  group_id: null,
+  position: -1,
+  launchpad_position: -1,
+};
 
 export const KNOWN_APPLICATIONS = [
   { id: "plex", name: "Plex", aliases: ["plex"] },
@@ -90,15 +107,19 @@ export function externalAccessLabel(
   return `${app.external_access === "confirmed" ? "Доступно извне" : "Внешний адрес найден · доступ извне не проверен"} · ${app.external_url}`;
 }
 
-export function filterApplications<
-  T extends { name: string; group_id: string | null },
->(apps: T[], groups: ApplicationGroup[], search: string): T[] {
+export function orderedApplications<T extends { launchpad_position: number }>(
+  apps: T[],
+): T[] {
+  return apps
+    .slice()
+    .sort((a, b) => a.launchpad_position - b.launchpad_position);
+}
+
+export function filterApplications<T extends { name: string }>(
+  apps: T[],
+  search: string,
+): T[] {
   const query = search.trim().toLocaleLowerCase("ru");
   if (!query) return apps;
-  const names = new Map(groups.map((g) => [g.id, g.name]));
-  return apps.filter((app) =>
-    `${app.name} ${names.get(app.group_id || "") || ""}`
-      .toLocaleLowerCase("ru")
-      .includes(query),
-  );
+  return apps.filter((app) => app.name.toLocaleLowerCase("ru").includes(query));
 }

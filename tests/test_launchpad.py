@@ -89,6 +89,42 @@ class LaunchpadTests(unittest.TestCase):
         self.store.reorder('applications', [b['id'], a['id']])
         self.assertEqual([x['name'] for x in self.store.catalogue()['applications']], ['B', 'A'])
 
+    def test_global_order_crosses_groups_and_survives_edits_and_restart(self):
+        group = self.store.save_group({'name': 'Legacy group'})
+        a = self.application(name='A', group_id=group['id'])
+        b = self.application(name='B')
+        self.store.reorder('applications', [b['id'], a['id']], all_applications=True)
+        updated = self.store.save_application({**a, 'name': 'Renamed'}, a['id'])
+        self.assertEqual(updated['launchpad_position'], 1)
+        reopened = Dashboard(self.path)
+        self.addCleanup(reopened.close)
+        apps = reopened.launchpad.catalogue()['applications']
+        self.assertEqual([x['name'] for x in sorted(apps, key=lambda x: x['launchpad_position'])], ['B', 'Renamed'])
+        self.assertEqual(next(x for x in apps if x['id'] == a['id'])['group_id'], group['id'])
+        before = reopened.launchpad.catalogue()
+        for ids in [[a['id']], [a['id'], a['id']], [a['id'], 'missing']]:
+            with self.assertRaises(ValueError):
+                reopened.launchpad.reorder('applications', ids, all_applications=True)
+            self.assertEqual(reopened.launchpad.catalogue(), before)
+        self.assertEqual(reopened.launchpad.save_application({'name': 'New', 'url': 'https://new.example'})['launchpad_position'], 2)
+
+    def test_existing_grouped_catalogue_migrates_in_its_visible_order(self):
+        legacy = Path(self.temp.name) / 'legacy.sqlite'
+        with sqlite3.connect(legacy) as db:
+            db.execute('CREATE TABLE application_groups(id TEXT PRIMARY KEY,name TEXT,position INTEGER)')
+            db.execute('''CREATE TABLE applications(id TEXT PRIMARY KEY,name TEXT,url TEXT,
+                local_url TEXT,external_url TEXT,external_access TEXT,icon TEXT,
+                group_id TEXT,position INTEGER,import_key TEXT UNIQUE)''')
+            db.executemany('INSERT INTO application_groups VALUES (?,?,?)', [('g1', 'First', 0), ('g2', 'Second', 1)])
+            for identifier, group, position in [('b', 'g2', 0), ('a2', 'g1', 1), ('a1', 'g1', 0), ('u', None, 0)]:
+                db.execute('INSERT INTO applications VALUES (?,?,?,?,?,?,?,?,?,?)',
+                           (identifier, identifier, 'https://app.example', '', '', 'unknown', 'blueprint', group, position, identifier))
+        migrated = Dashboard(legacy)
+        self.addCleanup(migrated.close)
+        apps = migrated.launchpad.catalogue()['applications']
+        self.assertEqual([a['id'] for a in sorted(apps, key=lambda a: a['launchpad_position'])], ['a1', 'a2', 'b', 'u'])
+        self.assertEqual(len(migrated.launchpad.catalogue()['groups']), 2)
+
     def test_group_rename_order_move_and_delete_preserve_applications(self):
         one = self.store.save_group({'name': 'One'})
         two = self.store.save_group({'name': 'Two'})
@@ -231,6 +267,14 @@ class LaunchpadHTTPTests(unittest.TestCase):
         status, changed = self.request('/api/applications/' + app['id'], 'PUT', {**app, 'external_url': 'https://new.example'})
         self.assertEqual(status, 200)
         self.assertEqual(changed['external_access'], 'unverified')
+
+    def test_api_supports_one_order_across_existing_groups(self):
+        _, group = self.request('/api/application-groups', 'POST', {'name': 'Legacy'})
+        _, a = self.request(method='POST', body={'name': 'A', 'url': 'https://a.example', 'group_id': group['id']})
+        _, b = self.request(method='POST', body={'name': 'B', 'url': 'https://b.example'})
+        self.assertEqual(self.request('/api/applications/order', 'PUT', {'scope': 'all', 'ids': [b['id'], a['id']]})[0], 200)
+        apps = self.request()[1]['applications']
+        self.assertEqual([a['name'] for a in sorted(apps, key=lambda a: a['launchpad_position'])], ['B', 'A'])
 
 
 if __name__ == '__main__':

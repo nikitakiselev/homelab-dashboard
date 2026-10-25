@@ -352,7 +352,8 @@ def handler(dashboard,token,dist,networks=()):
                         value=json.loads(self.rfile.read(size))
                         if not isinstance(value,dict): raise ValueError('Ожидается объект JSON')
                     if method=='PUT' and tail=='order':
-                        store.reorder('applications' if collection=='applications' else 'groups',value.get('ids'),value.get('group_id'))
+                        store.reorder('applications' if collection=='applications' else 'groups',value.get('ids'),value.get('group_id'),
+                                      all_applications=collection=='applications' and value.get('scope')=='all')
                         self.reply(200,{'ok':True}); return
                     if (method=='POST' and not tail) or (method=='PUT' and tail):
                         save=store.save_application if collection=='applications' else store.save_group

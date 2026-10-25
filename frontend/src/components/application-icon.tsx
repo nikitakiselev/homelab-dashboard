@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   Folder,
+  Command,
   Gamepad2,
   LayoutDashboard,
   Mic,
@@ -46,7 +47,11 @@ export function ApplicationIcon({
         className,
       )}
     >
-      {branded ? (
+      {icon === "homelab" ? (
+        <span className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[#384456] to-[#161e2d] text-white">
+          <Command size={36} strokeWidth={1.6} aria-hidden="true" />
+        </span>
+      ) : branded ? (
         <img
           src={`/app-icons/${icon}.webp`}
           alt=""

@@ -54,6 +54,16 @@ input:focus {
   border-color: #007aff;
   box-shadow: 0 0 0 3px #007aff14;
 }
+.launchpad-search {
+  color: white;
+}
+.launchpad-search::placeholder {
+  color: rgb(255 255 255 / 65%);
+}
+.launchpad-search:focus {
+  border-color: rgb(255 255 255 / 40%);
+  box-shadow: 0 0 0 3px rgb(255 255 255 / 8%);
+}
 .subtle {
   color: var(--muted-foreground);
 }

@@ -84,7 +84,7 @@ When moving an existing systemd installation, migrate its SQLite database and to
 
 ## Features
 
-- Home application launchpad with search, groups, local icons, editable links and persistent ordering. Monitoring remains available at `/overview`.
+- Compact home application grid with search, local icons, editable links and persistent ordering across the entire list. Monitoring remains available at `/overview`.
 - Separate local/external addresses; globe badges distinguish owner-confirmed external access from an unverified address. See [catalogue and import details (Russian)](docs/development.md#каталог-приложений).
 - Independent dashboard and Linux agent services, with separate configuration, credentials, databases, and updates.
 - Standalone Go agents for Linux x86_64/ARM64; no Python or Go toolchain needed on agent hosts.

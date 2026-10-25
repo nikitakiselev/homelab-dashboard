@@ -4,6 +4,7 @@ import {
   recognizeApplication,
   externalAccessLabel,
   filterApplications,
+  orderedApplications,
 } from "../../frontend/src/components/launchpad-data.ts";
 
 test("recognizes known apps by name or URL path without guessing by port", () => {
@@ -59,21 +60,35 @@ test("external badges never turn discovered URLs into verified availability", ()
   );
 });
 
-test("search finds Russian group names, keeps order and handles empty results", () => {
-  const groups = [{ id: "media", name: "Медиа", position: 0 }];
+test("search uses application names and keeps the flat list order", () => {
   const apps = [
-    { id: "1", name: "Plex", group_id: "media" },
+    { id: "1", name: "Медиатека Plex", group_id: "media" },
     { id: "2", name: "Gitea", group_id: null },
     { id: "3", name: "Sonarr", group_id: "media" },
   ];
   assert.deepEqual(
-    filterApplications(apps, groups, " МЕДИА ").map((a) => a.id),
-    ["1", "3"],
+    filterApplications(apps, " МЕДИА ").map((a) => a.id),
+    ["1"],
   );
   assert.deepEqual(
-    filterApplications(apps, groups, "gitea").map((a) => a.id),
+    filterApplications(apps, "gitea").map((a) => a.id),
     ["2"],
   );
-  assert.deepEqual(filterApplications(apps, groups, "unknown"), []);
-  assert.deepEqual(filterApplications(apps, groups, ""), apps);
+  assert.deepEqual(filterApplications(apps, "unknown"), []);
+  assert.deepEqual(filterApplications(apps, ""), apps);
+});
+
+test("global ordering ignores legacy groups and does not mutate the catalogue", () => {
+  const apps = [
+    { id: "a", group_id: "old-group", position: 0, launchpad_position: 1 },
+    { id: "b", group_id: null, position: 0, launchpad_position: 0 },
+  ];
+  assert.deepEqual(
+    orderedApplications(apps).map((a) => a.id),
+    ["b", "a"],
+  );
+  assert.deepEqual(
+    apps.map((a) => a.id),
+    ["a", "b"],
+  );
 });

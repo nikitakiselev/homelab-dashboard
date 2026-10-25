@@ -9,7 +9,7 @@ import uuid
 from urllib.parse import parse_qsl, urlsplit
 
 
-APPLICATION_FIELDS = 'id,name,url,local_url,external_url,external_access,icon,group_id,position'
+APPLICATION_FIELDS = 'id,name,url,local_url,external_url,external_access,icon,group_id,position,launchpad_position'
 SENSITIVE_PARAMETER = re.compile(r'(?:^|[_-])(?:token|secret|password|passwd|api[_-]?key|authorization|auth|key)(?:$|[_-])', re.I)
 
 
@@ -67,6 +67,14 @@ class Launchpad:
                 external_access TEXT NOT NULL, icon TEXT NOT NULL,
                 group_id TEXT REFERENCES application_groups(id), position INTEGER NOT NULL,
                 import_key TEXT UNIQUE)''')
+            if 'launchpad_position' not in {row['name'] for row in db.execute('PRAGMA table_info(applications)')}:
+                db.execute('ALTER TABLE applications ADD COLUMN launchpad_position INTEGER NOT NULL DEFAULT 0')
+                # Keep the formerly visible sequence when removing group sections.
+                rows = db.execute('''SELECT a.id FROM applications a
+                    LEFT JOIN application_groups g ON a.group_id=g.id
+                    ORDER BY CASE WHEN g.id IS NULL THEN 1 ELSE 0 END,g.position,a.position,a.rowid''').fetchall()
+                for position, row in enumerate(rows):
+                    db.execute('UPDATE applications SET launchpad_position=? WHERE id=?', (position, row['id']))
         os.chmod(self.path, 0o600)
 
     @contextmanager
@@ -147,7 +155,9 @@ class Launchpad:
         identifier = application_id or uuid.uuid4().hex
         position = (previous['position'] if previous and previous['group_id'] == fields['group_id']
                     else self.next_position(db, 'applications', fields['group_id']))
-        result = {'id': identifier, **fields, 'position': position}
+        launchpad_position = (previous['launchpad_position'] if previous else
+                              db.execute('SELECT COALESCE(MAX(launchpad_position),-1)+1 FROM applications').fetchone()[0])
+        result = {'id': identifier, **fields, 'position': position, 'launchpad_position': launchpad_position}
         if previous:
             db.execute('UPDATE applications SET ' + ','.join(f'{key}=?' for key in fields) + ',position=? WHERE id=?',
                        (*fields.values(), position, identifier))
@@ -174,7 +184,7 @@ class Launchpad:
                 db.execute('UPDATE applications SET group_id=NULL,position=? WHERE id=?', (position + index, row['id']))
             db.execute('DELETE FROM application_groups WHERE id=?', (identifier,))
 
-    def reorder(self, kind, ids, group_id=None):
+    def reorder(self, kind, ids, group_id=None, *, all_applications=False):
         if kind not in ('groups', 'applications') or not isinstance(ids, list) or not all(isinstance(x, str) for x in ids):
             raise ValueError('Ожидается полный список записей в новом порядке')
         if len(ids) > 1000 or len(set(ids)) != len(ids):
@@ -183,12 +193,15 @@ class Launchpad:
             raise ValueError('Некорректная группа')
         table = 'application_groups' if kind == 'groups' else 'applications'
         with self.db(write=True) as db:
-            where, args = (' WHERE group_id IS ?', (group_id,)) if kind == 'applications' else ('', ())
+            if all_applications and kind != 'applications':
+                raise ValueError('Общий порядок доступен только для приложений')
+            where, args = (' WHERE group_id IS ?', (group_id,)) if kind == 'applications' and not all_applications else ('', ())
             existing = {r['id'] for r in db.execute(f'SELECT id FROM {table}{where}', args)}
             if set(ids) != existing:
                 raise ValueError('Состав списка изменился. Обновите страницу и повторите')
             for position, identifier in enumerate(ids):
-                db.execute(f'UPDATE {table} SET position=? WHERE id=?', (position, identifier))
+                column = 'launchpad_position' if all_applications else 'position'
+                db.execute(f'UPDATE {table} SET {column}=? WHERE id=?', (position, identifier))
 
     def import_applications(self, records):
         if not isinstance(records, list) or len(records) > 1000:

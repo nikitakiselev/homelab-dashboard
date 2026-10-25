@@ -14,7 +14,6 @@ import {
   recognizeApplication,
   type Application,
   type ApplicationDraft,
-  type ApplicationGroup,
 } from "./launchpad-data";
 
 const inputClass =
@@ -22,12 +21,10 @@ const inputClass =
 
 export function ApplicationEditor({
   application,
-  groups,
   onSave,
   onClose,
 }: {
   application?: Application;
-  groups: ApplicationGroup[];
   onSave: (draft: ApplicationDraft) => Promise<void>;
   onClose: () => void;
 }) {
@@ -40,7 +37,6 @@ export function ApplicationEditor({
   const [access, setAccess] = useState(
     application?.external_access || "unknown",
   );
-  const [group, setGroup] = useState(application?.group_id || "");
   const [icon, setIcon] = useState(application?.icon || "blueprint");
   const [manualIcon, setManualIcon] = useState(!!application);
   const [busy, setBusy] = useState(false);
@@ -81,7 +77,7 @@ export function ApplicationEditor({
                     : "unverified"
                   : "unknown",
                 icon: selectedIcon,
-                group_id: group || null,
+                group_id: application?.group_id || null,
               });
             } catch (err) {
               setError((err as Error).message);
@@ -157,21 +153,6 @@ export function ApplicationEditor({
               Подобрана иконка {suggestion.name}
             </p>
           )}
-          <label className="block text-xs font-medium">
-            Группа
-            <select
-              value={group}
-              onChange={(e) => setGroup(e.target.value)}
-              className={inputClass + " mt-1.5"}
-            >
-              <option value="">Без группы</option>
-              {groups.map((g) => (
-                <option value={g.id} key={g.id}>
-                  {g.name}
-                </option>
-              ))}
-            </select>
-          </label>
           <details
             open={!!application?.local_url || !!application?.external_url}
             className="rounded-xl border border-zinc-200 p-4"
