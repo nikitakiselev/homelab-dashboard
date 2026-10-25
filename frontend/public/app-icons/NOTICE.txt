@@ -1,0 +1,5 @@
+Icons by selfh.st/icons (CC BY 4.0).
+Source: https://github.com/selfhst/icons
+License: https://creativecommons.org/licenses/by/4.0/
+Bundled WebP files are unmodified. Brand names and trademarks belong to their respective owners; no endorsement is implied.
+See LICENSE.txt and sources.json in this directory.

@@ -1,0 +1,92 @@
+{
+  "collection": "selfh.st/icons",
+  "license": "CC-BY-4.0",
+  "revision": "1d65d45a42e6323b54b8096967b1ea4b65321f97",
+  "icons": [
+    {
+      "icon": "plex",
+      "source": "https://raw.githubusercontent.com/selfhst/icons/1d65d45a42e6323b54b8096967b1ea4b65321f97/webp/plex.webp",
+      "bytes": 764
+    },
+    {
+      "icon": "radarr",
+      "source": "https://raw.githubusercontent.com/selfhst/icons/1d65d45a42e6323b54b8096967b1ea4b65321f97/webp/radarr.webp",
+      "bytes": 2498
+    },
+    {
+      "icon": "sonarr",
+      "source": "https://raw.githubusercontent.com/selfhst/icons/1d65d45a42e6323b54b8096967b1ea4b65321f97/webp/sonarr.webp",
+      "bytes": 10472
+    },
+    {
+      "icon": "prowlarr",
+      "source": "https://raw.githubusercontent.com/selfhst/icons/1d65d45a42e6323b54b8096967b1ea4b65321f97/webp/prowlarr.webp",
+      "bytes": 18752
+    },
+    {
+      "icon": "transmission",
+      "source": "https://raw.githubusercontent.com/selfhst/icons/1d65d45a42e6323b54b8096967b1ea4b65321f97/webp/transmission.webp",
+      "bytes": 7362
+    },
+    {
+      "icon": "home-assistant",
+      "source": "https://raw.githubusercontent.com/selfhst/icons/1d65d45a42e6323b54b8096967b1ea4b65321f97/webp/home-assistant.webp",
+      "bytes": 2306
+    },
+    {
+      "icon": "grafana",
+      "source": "https://raw.githubusercontent.com/selfhst/icons/1d65d45a42e6323b54b8096967b1ea4b65321f97/webp/grafana.webp",
+      "bytes": 7238
+    },
+    {
+      "icon": "uptime-kuma",
+      "source": "https://raw.githubusercontent.com/selfhst/icons/1d65d45a42e6323b54b8096967b1ea4b65321f97/webp/uptime-kuma.webp",
+      "bytes": 6332
+    },
+    {
+      "icon": "prometheus",
+      "source": "https://raw.githubusercontent.com/selfhst/icons/1d65d45a42e6323b54b8096967b1ea4b65321f97/webp/prometheus.webp",
+      "bytes": 3448
+    },
+    {
+      "icon": "glitchtip",
+      "source": "https://raw.githubusercontent.com/selfhst/icons/1d65d45a42e6323b54b8096967b1ea4b65321f97/webp/glitchtip.webp",
+      "bytes": 3374
+    },
+    {
+      "icon": "gitea",
+      "source": "https://raw.githubusercontent.com/selfhst/icons/1d65d45a42e6323b54b8096967b1ea4b65321f97/webp/gitea.webp",
+      "bytes": 2632
+    },
+    {
+      "icon": "owncloud",
+      "source": "https://raw.githubusercontent.com/selfhst/icons/1d65d45a42e6323b54b8096967b1ea4b65321f97/webp/owncloud.webp",
+      "bytes": 3052
+    },
+    {
+      "icon": "open-webui",
+      "source": "https://raw.githubusercontent.com/selfhst/icons/1d65d45a42e6323b54b8096967b1ea4b65321f97/webp/open-webui.webp",
+      "bytes": 3874
+    },
+    {
+      "icon": "comfyui",
+      "source": "https://raw.githubusercontent.com/selfhst/icons/1d65d45a42e6323b54b8096967b1ea4b65321f97/webp/comfyui.webp",
+      "bytes": 6356
+    },
+    {
+      "icon": "beszel",
+      "source": "https://raw.githubusercontent.com/selfhst/icons/1d65d45a42e6323b54b8096967b1ea4b65321f97/webp/beszel.webp",
+      "bytes": 4276
+    },
+    {
+      "icon": "proxmox",
+      "source": "https://raw.githubusercontent.com/selfhst/icons/1d65d45a42e6323b54b8096967b1ea4b65321f97/webp/proxmox.webp",
+      "bytes": 8398
+    },
+    {
+      "icon": "homepage",
+      "source": "https://raw.githubusercontent.com/selfhst/icons/1d65d45a42e6323b54b8096967b1ea4b65321f97/webp/homepage.webp",
+      "bytes": 5696
+    }
+  ]
+}

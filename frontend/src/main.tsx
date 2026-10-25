@@ -13,8 +13,10 @@ import {
 import { type HistoryPeriod } from "./components/resource-history";
 import { NetworkHistory } from "./components/network-history";
 import { ServerPage } from "./components/server-page";
+import { Launchpad } from "./components/launchpad";
 import {
   LayoutGrid,
+  House,
   Server,
   HardDrive,
   Plus,
@@ -67,14 +69,16 @@ import {
 import { DiskStatus, getDiskStatus } from "./components/disk-status";
 import "./index.css";
 
-type View = "overview" | "servers" | "storage";
+type View = "home" | "overview" | "servers" | "storage";
 const labels: Record<View, string> = {
+  home: "Главная",
   overview: "Обзор",
   servers: "Серверы",
   storage: "Накопители",
 };
 const viewPaths: Record<View, string> = {
-  overview: "/",
+  home: "/",
+  overview: "/overview",
   servers: "/servers",
   storage: "/storage",
 };
@@ -233,6 +237,7 @@ function App({ view }: { view: View }) {
         <nav className="space-y-1">
           {(
             [
+              ["home", House],
               ["overview", LayoutGrid],
               ["servers", Server],
               ["storage", HardDrive],
@@ -321,7 +326,7 @@ function App({ view }: { view: View }) {
                   error ? "bg-orange-400" : "bg-emerald-500",
                 )}
               />
-              {updated ? "Обновление каждые 10 секунд" : "Подключение…"}
+              {updated ? "Метрики · каждые 10 секунд" : "Подключение…"}
               <span
                 id="last-update-tooltip"
                 role="tooltip"
@@ -368,420 +373,435 @@ function App({ view }: { view: View }) {
           ))}
         </nav>
         <div className="mx-auto max-w-[1510px] px-4 py-5 lg:px-6 lg:py-6">
-          {!detailId && (
-            <div className="mb-5 flex flex-wrap items-center justify-between gap-4">
-              <div>
-                <div className="mb-1.5 flex items-center gap-2 text-[14px] text-muted-foreground">
-                  <span className="h-px w-5 bg-zinc-300" />
-                  ИНФРАСТРУКТУРА
-                </div>
-                <h1 className="m-0 text-[26px] leading-tight font-semibold tracking-[-1.1px]">
-                  {view === "overview" ? "Обзор" : labels[view]}
-                </h1>
-                <p className="mt-2 mb-0 text-[14px] text-muted-foreground">
-                  {view === "overview"
-                    ? "Состояние серверов и использование ресурсов."
-                    : view === "storage"
-                      ? "Состояние дисков, заполнение и SMART."
-                      : "Подключённые хосты и их ресурсы."}
-                </p>
-              </div>
-              <Button
-                onClick={() => setAdd(true)}
-                className="rounded-[9px] px-4 text-sm"
-              >
-                <Plus size={16} />
-                Добавить сервер
-              </Button>
-            </div>
-          )}
-          {hosts.some((h) => h.demo) && showDemo && !detailId && (
-            <div className="mb-6 flex items-center justify-between gap-3 rounded-xl border border-blue-100 bg-blue-50/60 px-4 py-2.5 text-[14px] text-blue-700">
-              <span className="flex items-center gap-2">
-                <Monitor size={14} />
-                <span>
-                  <strong className="font-medium">Демонстрация.</strong>{" "}
-                  Синтетические метрики демосерверов.
-                </span>
-              </span>
-              <button
-                aria-label="Скрыть демосерверы"
-                onClick={() => setShowDemo(false)}
-                className="rounded p-1 hover:bg-blue-100 cursor-pointer"
-              >
-                <X size={14} />
-              </button>
-            </div>
-          )}
-          {error && !auth && (
-            <div
-              role="alert"
-              className="mb-6 rounded-xl bg-red-50 p-4 text-sm text-red-700"
-            >
-              {error}
-              <button onClick={load} className="ml-3 underline cursor-pointer">
-                Повторить
-              </button>
-            </div>
-          )}
-          {loading ? (
-            <div className="flex h-72 items-center justify-center gap-3 text-sm text-muted-foreground">
-              <Loader2 className="spinner" size={18} />
-              Загрузка метрик…
-            </div>
-          ) : detailId ? (
-            detail ? (
-              <ServerPage
-                host={detail}
-                period={period}
-                onPeriodChange={setPeriod}
-                records={history}
-                loading={historyLoading}
-                error={historyError}
-                end={updated || Date.now() / 1000}
-                onDelete={() => setDeleteTarget(detail.id)}
-                system={<HostDetails host={detail} />}
-                disks={
-                  <DiskList
-                    disks={detail.metrics?.disks || []}
-                    online={detail.online}
-                  />
-                }
-              />
-            ) : (
-              <Card className="p-8">
-                <h1 className="text-xl font-semibold">Сервер не найден</h1>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  {error
-                    ? "Не удалось загрузить серверы. Повторите запрос."
-                    : "Сервер удалён или адрес указан неверно."}
-                </p>
-                <Button asChild className="mt-5">
-                  <Link to="/servers">Все серверы</Link>
-                </Button>
-              </Card>
-            )
+          {view === "home" ? (
+            <Launchpad
+              request={request}
+              hosts={eligible}
+              hostsLoading={loading}
+              hostsError={error}
+            />
           ) : (
             <>
-              {view === "overview" && (
-                <div className="mb-5 grid grid-cols-2 gap-3 xl:grid-cols-4">
-                  <Summary
-                    icon={Server}
-                    title="Серверы"
-                    value={String(online.length)}
-                    unit={`/ ${eligible.length}`}
-                    detail="в сети"
-                    color="blue"
-                    footer={
-                      <>
-                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                        {eligible.length - online.length
-                          ? `${eligible.length - online.length} недоступно`
-                          : eligible.length
-                            ? "Серверы доступны"
-                            : "Нет подключённых серверов"}
-                      </>
-                    }
-                  />
-                  <Summary
-                    icon={Cpu}
-                    title="Процессор"
-                    value={
-                      metrics.some((m) => m.cpu.usage != null)
-                        ? String(Math.round(cpu))
-                        : "—"
-                    }
-                    unit="%"
-                    detail="средняя загрузка"
-                    color="purple"
-                    footer={
-                      <>
-                        <div className="h-1 w-full overflow-hidden rounded-full bg-zinc-100">
-                          <div
-                            className="h-full rounded-full bg-[#a7a0ed]"
-                            style={{ width: Math.min(cpu, 100) + "%" }}
-                          />
-                        </div>
-                        <span className="whitespace-nowrap">
-                          {metrics.reduce((s, m) => s + m.cpu.cores, 0)} потоков
-                        </span>
-                      </>
-                    }
-                  />
-                  <Summary
-                    icon={MemoryStick}
-                    title="Память"
-                    value={bytes(usedMemory, 0)}
-                    detail={`из ${bytes(totalMemory, 0)}`}
-                    color="orange"
-                    footer={
-                      <>
-                        <div className="h-1 w-full overflow-hidden rounded-full bg-zinc-100">
-                          <div
-                            className="h-full rounded-full bg-[#e7b47c]"
-                            style={{
-                              width:
-                                (totalMemory
-                                  ? (usedMemory / totalMemory) * 100
-                                  : 0) + "%",
-                            }}
-                          />
-                        </div>
-                        <span>
-                          {totalMemory
-                            ? Math.round((usedMemory / totalMemory) * 100)
-                            : 0}
-                          %
-                        </span>
-                      </>
-                    }
-                  />
-                  <Summary
-                    icon={HardDrive}
-                    title="Хранилище"
-                    value={bytes(usedDisk)}
-                    detail={`занято в смонтированных томах · ${bytes(totalDisk)} дисков`}
-                    color="green"
-                    footer={
-                      <>
-                        <div
-                          className={cn(
-                            "h-1.5 w-1.5 shrink-0 rounded-full",
-                            warnings.length
-                              ? "bg-orange-400"
-                              : "bg-emerald-500",
-                          )}
-                        />
-                        {warnings.length
-                          ? `${warnings.length} диск требует внимания`
-                          : `${allDisks.length} накопителей подключено`}
-                      </>
-                    }
-                  />
-                </div>
-              )}
-              {(view === "overview" || view === "servers") && (
-                <>
-                  <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                    <div className="flex items-center gap-2">
-                      <h2 className="m-0 text-[16px] font-semibold tracking-[-.3px]">
-                        Серверы
-                      </h2>
-                      <span className="rounded-md border border-black/5 bg-white px-1.5 py-0.5 text-[12px] text-muted-foreground">
-                        {visible.length}
-                      </span>
+              {!detailId && (
+                <div className="mb-5 flex flex-wrap items-center justify-between gap-4">
+                  <div>
+                    <div className="mb-1.5 flex items-center gap-2 text-[14px] text-muted-foreground">
+                      <span className="h-px w-5 bg-zinc-300" />
+                      ИНФРАСТРУКТУРА
                     </div>
-                    <label className="flex h-8 items-center gap-2 rounded-lg border border-black/[.06] bg-white px-2.5 text-muted-foreground">
-                      <Search size={13} />
-                      <input
-                        aria-label="Найти сервер"
-                        placeholder="Найти сервер…"
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        className="w-32 bg-transparent text-[14px] text-zinc-700 outline-none focus:shadow-none sm:w-40"
-                      />
-                    </label>
+                    <h1 className="m-0 text-[26px] leading-tight font-semibold tracking-[-1.1px]">
+                      {view === "overview" ? "Обзор" : labels[view]}
+                    </h1>
+                    <p className="mt-2 mb-0 text-[14px] text-muted-foreground">
+                      {view === "overview"
+                        ? "Состояние серверов и использование ресурсов."
+                        : view === "storage"
+                          ? "Состояние дисков, заполнение и SMART."
+                          : "Подключённые хосты и их ресурсы."}
+                    </p>
                   </div>
-                  <div className="mb-5 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-                    {visible.map((h) => (
-                      <ServerCard key={h.id} host={h} />
-                    ))}
-                    {!visible.length && (
-                      <Card className="col-span-full flex flex-col items-center py-14 text-center">
-                        <div className="mb-4 rounded-2xl bg-blue-50 p-4 text-blue-700">
-                          <Server size={28} strokeWidth={1.4} />
-                        </div>
-                        <h3 className="text-lg font-medium">
-                          {search
-                            ? "Серверы не найдены"
-                            : "Нет подключённых серверов"}
-                        </h3>
-                        <p className="mb-5 max-w-sm text-sm text-muted-foreground">
-                          {search
-                            ? "Попробуйте другое имя или IP-адрес."
-                            : "Установите агент на Linux-сервер и добавьте его по IP-адресу."}
-                        </p>
-                        <Button
-                          onClick={() =>
-                            search ? setSearch("") : setAdd(true)
-                          }
-                        >
-                          {search ? "Сбросить поиск" : "Добавить сервер"}
-                        </Button>
-                      </Card>
-                    )}
-                  </div>
-                </>
-              )}
-              {view === "storage" && (
-                <div className="space-y-6">
-                  {visible.map((h) => (
-                    <Card key={h.id} className="min-w-0 px-4">
-                      <div className="flex flex-wrap items-center gap-3 border-b border-zinc-100 py-3">
-                        <div className="shrink-0 rounded-lg bg-blue-50 p-2 text-blue-700">
-                          <Server size={19} />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <h2 className="break-words text-sm font-semibold">
-                            <Link
-                              to={`/servers/${encodeURIComponent(h.id)}`}
-                              className="hover:text-blue-700"
-                            >
-                              {h.name}
-                            </Link>
-                          </h2>
-                          <p className="break-words text-xs text-muted-foreground">
-                            {h.ip} · {h.online ? "В сети" : "Недоступен"}
-                            {h.demo ? " · Демо" : ""}
-                          </p>
-                        </div>
-                        <Button
-                          asChild
-                          variant="outline"
-                          size="sm"
-                          className="ml-auto shrink-0"
-                        >
-                          <Link
-                            to={`/servers/${encodeURIComponent(h.id)}#disk-activity`}
-                          >
-                            Чтение и запись <ArrowUpRight size={14} />
-                          </Link>
-                        </Button>
-                      </div>
-                      {!h.online && (
-                        <p className="mb-3 text-sm text-orange-700">
-                          Последние доступные данные. Сервер не в сети.
-                        </p>
-                      )}
-                      <DiskList
-                        disks={h.metrics?.disks || []}
-                        online={h.online}
-                      />
-                    </Card>
-                  ))}
-                  {!visible.length && (
-                    <Empty text="Добавьте сервер, чтобы увидеть его накопители." />
-                  )}
+                  <Button
+                    onClick={() => setAdd(true)}
+                    className="rounded-[9px] px-4 text-sm"
+                  >
+                    <Plus size={16} />
+                    Добавить сервер
+                  </Button>
                 </div>
               )}
-              {view === "overview" && (
-                <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(300px,1fr)]">
-                  <NetworkHistory
-                    hosts={eligible}
-                    request={request}
+              {hosts.some((h) => h.demo) && showDemo && !detailId && (
+                <div className="mb-6 flex items-center justify-between gap-3 rounded-xl border border-blue-100 bg-blue-50/60 px-4 py-2.5 text-[14px] text-blue-700">
+                  <span className="flex items-center gap-2">
+                    <Monitor size={14} />
+                    <span>
+                      <strong className="font-medium">Демонстрация.</strong>{" "}
+                      Синтетические метрики демосерверов.
+                    </span>
+                  </span>
+                  <button
+                    aria-label="Скрыть демосерверы"
+                    onClick={() => setShowDemo(false)}
+                    className="rounded p-1 hover:bg-blue-100 cursor-pointer"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              )}
+              {error && !auth && (
+                <div
+                  role="alert"
+                  className="mb-6 rounded-xl bg-red-50 p-4 text-sm text-red-700"
+                >
+                  {error}
+                  <button
+                    onClick={load}
+                    className="ml-3 underline cursor-pointer"
+                  >
+                    Повторить
+                  </button>
+                </div>
+              )}
+              {loading ? (
+                <div className="flex h-72 items-center justify-center gap-3 text-sm text-muted-foreground">
+                  <Loader2 className="spinner" size={18} />
+                  Загрузка метрик…
+                </div>
+              ) : detailId ? (
+                detail ? (
+                  <ServerPage
+                    host={detail}
                     period={period}
                     onPeriodChange={setPeriod}
+                    records={history}
+                    loading={historyLoading}
+                    error={historyError}
                     end={updated || Date.now() / 1000}
+                    onDelete={() => setDeleteTarget(detail.id)}
+                    system={<HostDetails host={detail} />}
+                    disks={
+                      <DiskList
+                        disks={detail.metrics?.disks || []}
+                        online={detail.online}
+                      />
+                    }
                   />
-                  <Card className="p-5">
-                    <div className="mb-5 flex items-center justify-between">
-                      <h2 className="m-0 flex items-center gap-2 text-sm font-semibold">
-                        <ShieldCheck
-                          size={16}
-                          className="text-muted-foreground"
-                        />
-                        Состояние накопителей
-                      </h2>
-                      <button
-                        onClick={() => setView("storage")}
-                        aria-label="Все накопители"
-                        className="text-muted-foreground hover:text-blue-700 cursor-pointer"
-                      >
-                        <ArrowUpRight size={16} />
-                      </button>
-                    </div>
-                    {allDisks.length ? (
-                      <>
-                        <div className="mb-5 flex items-center gap-3 rounded-xl bg-[#f7f8fa] px-3 py-3">
-                          <div
-                            className={cn(
-                              "flex h-9 w-9 shrink-0 items-center justify-center rounded-full",
-                              warnings.length
-                                ? "bg-orange-100/60 text-orange-700"
-                                : smartUnchecked
-                                  ? "bg-zinc-200/60 text-muted-foreground"
-                                  : "bg-emerald-100/60 text-emerald-700",
-                            )}
-                          >
-                            {warnings.length ? (
-                              <AlertTriangle size={18} />
-                            ) : smartUnchecked ? (
-                              <CircleHelp size={18} />
-                            ) : (
-                              <Check size={18} />
-                            )}
-                          </div>
-                          <div>
-                            <div className="text-sm font-medium">
-                              {warnings.length
-                                ? "Предупреждения SMART"
-                                : smartPassive
-                                  ? "SMART: опрос отключён"
-                                  : smartUnchecked
-                                    ? "SMART: неполные данные"
-                                    : "SMART: ошибок не обнаружено"}
-                            </div>
-                            <div className="mt-1 text-[12px] text-muted-foreground">
-                              {warnings.length
-                                ? `${warnings.length} из ${allDisks.length} требуют проверки`
-                                : smartPassive
-                                  ? "SMART для части дисков не опрашивается"
-                                  : smartUnchecked
-                                    ? "Для части дисков нет свежих данных о состоянии"
-                                    : "Предупреждений SMART нет"}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="space-y-4">
-                          {online.slice(0, 4).map((h) => (
-                            <button
-                              key={h.id}
-                              onClick={() => {
-                                setView("storage");
-                              }}
-                              className="flex w-full items-center gap-2 text-left cursor-pointer"
-                            >
-                              <Server
-                                size={14}
-                                className="text-muted-foreground"
-                              />
-                              <span className="min-w-0 flex-1 truncate text-[14px]">
-                                {h.name}
-                              </span>
-                              <div className="flex gap-1">
-                                {h.metrics?.disks.map((d) => (
-                                  <span
-                                    key={d.name}
-                                    title={`${d.name}: ${getDiskStatus(d, h.online).label} · ${healthText(d)}`}
-                                    className={cn(
-                                      "h-2 w-2 rounded-full",
-                                      getDiskStatus(d, h.online).dot,
-                                    )}
-                                  />
-                                ))}
-                              </div>
-                              <span className="w-14 text-right text-[12px] text-muted-foreground">
-                                {h.metrics?.disks.length} диска
-                              </span>
-                              <ChevronRight
-                                size={11}
-                                className="text-muted-foreground"
-                              />
-                            </button>
-                          ))}
-                        </div>
-                        <div className="mt-5 border-t border-black/5 pt-3 text-[12px] leading-relaxed text-muted-foreground">
-                          Частота SMART зависит от политики агента; HDD могут
-                          передавать сохранённые данные.
-                          <br />
-                          Подробности доступны в разделе накопителей.
-                        </div>
-                      </>
-                    ) : (
-                      <Empty text="Состояние появится после подключения агента." />
-                    )}
+                ) : (
+                  <Card className="p-8">
+                    <h1 className="text-xl font-semibold">Сервер не найден</h1>
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      {error
+                        ? "Не удалось загрузить серверы. Повторите запрос."
+                        : "Сервер удалён или адрес указан неверно."}
+                    </p>
+                    <Button asChild className="mt-5">
+                      <Link to="/servers">Все серверы</Link>
+                    </Button>
                   </Card>
-                </div>
+                )
+              ) : (
+                <>
+                  {view === "overview" && (
+                    <div className="mb-5 grid grid-cols-2 gap-3 xl:grid-cols-4">
+                      <Summary
+                        icon={Server}
+                        title="Серверы"
+                        value={String(online.length)}
+                        unit={`/ ${eligible.length}`}
+                        detail="в сети"
+                        color="blue"
+                        footer={
+                          <>
+                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                            {eligible.length - online.length
+                              ? `${eligible.length - online.length} недоступно`
+                              : eligible.length
+                                ? "Серверы доступны"
+                                : "Нет подключённых серверов"}
+                          </>
+                        }
+                      />
+                      <Summary
+                        icon={Cpu}
+                        title="Процессор"
+                        value={
+                          metrics.some((m) => m.cpu.usage != null)
+                            ? String(Math.round(cpu))
+                            : "—"
+                        }
+                        unit="%"
+                        detail="средняя загрузка"
+                        color="purple"
+                        footer={
+                          <>
+                            <div className="h-1 w-full overflow-hidden rounded-full bg-zinc-100">
+                              <div
+                                className="h-full rounded-full bg-[#a7a0ed]"
+                                style={{ width: Math.min(cpu, 100) + "%" }}
+                              />
+                            </div>
+                            <span className="whitespace-nowrap">
+                              {metrics.reduce((s, m) => s + m.cpu.cores, 0)}{" "}
+                              потоков
+                            </span>
+                          </>
+                        }
+                      />
+                      <Summary
+                        icon={MemoryStick}
+                        title="Память"
+                        value={bytes(usedMemory, 0)}
+                        detail={`из ${bytes(totalMemory, 0)}`}
+                        color="orange"
+                        footer={
+                          <>
+                            <div className="h-1 w-full overflow-hidden rounded-full bg-zinc-100">
+                              <div
+                                className="h-full rounded-full bg-[#e7b47c]"
+                                style={{
+                                  width:
+                                    (totalMemory
+                                      ? (usedMemory / totalMemory) * 100
+                                      : 0) + "%",
+                                }}
+                              />
+                            </div>
+                            <span>
+                              {totalMemory
+                                ? Math.round((usedMemory / totalMemory) * 100)
+                                : 0}
+                              %
+                            </span>
+                          </>
+                        }
+                      />
+                      <Summary
+                        icon={HardDrive}
+                        title="Хранилище"
+                        value={bytes(usedDisk)}
+                        detail={`занято в смонтированных томах · ${bytes(totalDisk)} дисков`}
+                        color="green"
+                        footer={
+                          <>
+                            <div
+                              className={cn(
+                                "h-1.5 w-1.5 shrink-0 rounded-full",
+                                warnings.length
+                                  ? "bg-orange-400"
+                                  : "bg-emerald-500",
+                              )}
+                            />
+                            {warnings.length
+                              ? `${warnings.length} диск требует внимания`
+                              : `${allDisks.length} накопителей подключено`}
+                          </>
+                        }
+                      />
+                    </div>
+                  )}
+                  {(view === "overview" || view === "servers") && (
+                    <>
+                      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                        <div className="flex items-center gap-2">
+                          <h2 className="m-0 text-[16px] font-semibold tracking-[-.3px]">
+                            Серверы
+                          </h2>
+                          <span className="rounded-md border border-black/5 bg-white px-1.5 py-0.5 text-[12px] text-muted-foreground">
+                            {visible.length}
+                          </span>
+                        </div>
+                        <label className="flex h-8 items-center gap-2 rounded-lg border border-black/[.06] bg-white px-2.5 text-muted-foreground">
+                          <Search size={13} />
+                          <input
+                            aria-label="Найти сервер"
+                            placeholder="Найти сервер…"
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            className="w-32 bg-transparent text-[14px] text-zinc-700 outline-none focus:shadow-none sm:w-40"
+                          />
+                        </label>
+                      </div>
+                      <div className="mb-5 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                        {visible.map((h) => (
+                          <ServerCard key={h.id} host={h} />
+                        ))}
+                        {!visible.length && (
+                          <Card className="col-span-full flex flex-col items-center py-14 text-center">
+                            <div className="mb-4 rounded-2xl bg-blue-50 p-4 text-blue-700">
+                              <Server size={28} strokeWidth={1.4} />
+                            </div>
+                            <h3 className="text-lg font-medium">
+                              {search
+                                ? "Серверы не найдены"
+                                : "Нет подключённых серверов"}
+                            </h3>
+                            <p className="mb-5 max-w-sm text-sm text-muted-foreground">
+                              {search
+                                ? "Попробуйте другое имя или IP-адрес."
+                                : "Установите агент на Linux-сервер и добавьте его по IP-адресу."}
+                            </p>
+                            <Button
+                              onClick={() =>
+                                search ? setSearch("") : setAdd(true)
+                              }
+                            >
+                              {search ? "Сбросить поиск" : "Добавить сервер"}
+                            </Button>
+                          </Card>
+                        )}
+                      </div>
+                    </>
+                  )}
+                  {view === "storage" && (
+                    <div className="space-y-6">
+                      {visible.map((h) => (
+                        <Card key={h.id} className="min-w-0 px-4">
+                          <div className="flex flex-wrap items-center gap-3 border-b border-zinc-100 py-3">
+                            <div className="shrink-0 rounded-lg bg-blue-50 p-2 text-blue-700">
+                              <Server size={19} />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <h2 className="break-words text-sm font-semibold">
+                                <Link
+                                  to={`/servers/${encodeURIComponent(h.id)}`}
+                                  className="hover:text-blue-700"
+                                >
+                                  {h.name}
+                                </Link>
+                              </h2>
+                              <p className="break-words text-xs text-muted-foreground">
+                                {h.ip} · {h.online ? "В сети" : "Недоступен"}
+                                {h.demo ? " · Демо" : ""}
+                              </p>
+                            </div>
+                            <Button
+                              asChild
+                              variant="outline"
+                              size="sm"
+                              className="ml-auto shrink-0"
+                            >
+                              <Link
+                                to={`/servers/${encodeURIComponent(h.id)}#disk-activity`}
+                              >
+                                Чтение и запись <ArrowUpRight size={14} />
+                              </Link>
+                            </Button>
+                          </div>
+                          {!h.online && (
+                            <p className="mb-3 text-sm text-orange-700">
+                              Последние доступные данные. Сервер не в сети.
+                            </p>
+                          )}
+                          <DiskList
+                            disks={h.metrics?.disks || []}
+                            online={h.online}
+                          />
+                        </Card>
+                      ))}
+                      {!visible.length && (
+                        <Empty text="Добавьте сервер, чтобы увидеть его накопители." />
+                      )}
+                    </div>
+                  )}
+                  {view === "overview" && (
+                    <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(300px,1fr)]">
+                      <NetworkHistory
+                        hosts={eligible}
+                        request={request}
+                        period={period}
+                        onPeriodChange={setPeriod}
+                        end={updated || Date.now() / 1000}
+                      />
+                      <Card className="p-5">
+                        <div className="mb-5 flex items-center justify-between">
+                          <h2 className="m-0 flex items-center gap-2 text-sm font-semibold">
+                            <ShieldCheck
+                              size={16}
+                              className="text-muted-foreground"
+                            />
+                            Состояние накопителей
+                          </h2>
+                          <button
+                            onClick={() => setView("storage")}
+                            aria-label="Все накопители"
+                            className="text-muted-foreground hover:text-blue-700 cursor-pointer"
+                          >
+                            <ArrowUpRight size={16} />
+                          </button>
+                        </div>
+                        {allDisks.length ? (
+                          <>
+                            <div className="mb-5 flex items-center gap-3 rounded-xl bg-[#f7f8fa] px-3 py-3">
+                              <div
+                                className={cn(
+                                  "flex h-9 w-9 shrink-0 items-center justify-center rounded-full",
+                                  warnings.length
+                                    ? "bg-orange-100/60 text-orange-700"
+                                    : smartUnchecked
+                                      ? "bg-zinc-200/60 text-muted-foreground"
+                                      : "bg-emerald-100/60 text-emerald-700",
+                                )}
+                              >
+                                {warnings.length ? (
+                                  <AlertTriangle size={18} />
+                                ) : smartUnchecked ? (
+                                  <CircleHelp size={18} />
+                                ) : (
+                                  <Check size={18} />
+                                )}
+                              </div>
+                              <div>
+                                <div className="text-sm font-medium">
+                                  {warnings.length
+                                    ? "Предупреждения SMART"
+                                    : smartPassive
+                                      ? "SMART: опрос отключён"
+                                      : smartUnchecked
+                                        ? "SMART: неполные данные"
+                                        : "SMART: ошибок не обнаружено"}
+                                </div>
+                                <div className="mt-1 text-[12px] text-muted-foreground">
+                                  {warnings.length
+                                    ? `${warnings.length} из ${allDisks.length} требуют проверки`
+                                    : smartPassive
+                                      ? "SMART для части дисков не опрашивается"
+                                      : smartUnchecked
+                                        ? "Для части дисков нет свежих данных о состоянии"
+                                        : "Предупреждений SMART нет"}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="space-y-4">
+                              {online.slice(0, 4).map((h) => (
+                                <button
+                                  key={h.id}
+                                  onClick={() => {
+                                    setView("storage");
+                                  }}
+                                  className="flex w-full items-center gap-2 text-left cursor-pointer"
+                                >
+                                  <Server
+                                    size={14}
+                                    className="text-muted-foreground"
+                                  />
+                                  <span className="min-w-0 flex-1 truncate text-[14px]">
+                                    {h.name}
+                                  </span>
+                                  <div className="flex gap-1">
+                                    {h.metrics?.disks.map((d) => (
+                                      <span
+                                        key={d.name}
+                                        title={`${d.name}: ${getDiskStatus(d, h.online).label} · ${healthText(d)}`}
+                                        className={cn(
+                                          "h-2 w-2 rounded-full",
+                                          getDiskStatus(d, h.online).dot,
+                                        )}
+                                      />
+                                    ))}
+                                  </div>
+                                  <span className="w-14 text-right text-[12px] text-muted-foreground">
+                                    {h.metrics?.disks.length} диска
+                                  </span>
+                                  <ChevronRight
+                                    size={11}
+                                    className="text-muted-foreground"
+                                  />
+                                </button>
+                              ))}
+                            </div>
+                            <div className="mt-5 border-t border-black/5 pt-3 text-[12px] leading-relaxed text-muted-foreground">
+                              Частота SMART зависит от политики агента; HDD
+                              могут передавать сохранённые данные.
+                              <br />
+                              Подробности доступны в разделе накопителей.
+                            </div>
+                          </>
+                        ) : (
+                          <Empty text="Состояние появится после подключения агента." />
+                        )}
+                      </Card>
+                    </div>
+                  )}
+                </>
               )}
             </>
           )}
@@ -1579,7 +1599,7 @@ createRoot(document.getElementById("root")!).render(
         {(Object.entries(viewPaths) as [View, string][]).map(([view, path]) => (
           <Route key={view} path={path} element={<App view={view} />} />
         ))}
-        <Route path="/network" element={<Navigate to="/" replace />} />
+        <Route path="/network" element={<Navigate to="/overview" replace />} />
         <Route path="/servers/:serverId" element={<App view="servers" />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
@@ -1668,10 +1688,10 @@ function NotFound() {
         <p className="text-sm font-medium text-muted-foreground">404</p>
         <h1 className="mt-3 text-2xl font-semibold">Страница не найдена</h1>
         <p className="mt-3 text-sm leading-6 text-muted-foreground">
-          Проверьте адрес или вернитесь к обзору серверов.
+          Проверьте адрес или вернитесь на главную.
         </p>
         <Button asChild className="mt-6">
-          <Link to="/">Открыть обзор</Link>
+          <Link to="/">На главную</Link>
         </Button>
       </div>
     </main>
