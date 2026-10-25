@@ -14,6 +14,7 @@ import { type HistoryPeriod } from "./components/resource-history";
 import { NetworkHistory } from "./components/network-history";
 import { ServerPage } from "./components/server-page";
 import { Launchpad } from "./components/launchpad";
+import { readDashboardResponse } from "./dashboard-api";
 import {
   LayoutGrid,
   House,
@@ -118,13 +119,7 @@ function App({ view }: { view: View }) {
           ...options.headers,
         },
       });
-      if (r.status === 401) {
-        setAuth(true);
-        throw new Error("Требуется токен доступа");
-      }
-      const data = await r.json();
-      if (!r.ok) throw new Error(data.error || "Ошибка запроса");
-      return data;
+      return readDashboardResponse(r, setAuth);
     },
     [token],
   );
@@ -135,7 +130,6 @@ function App({ view }: { view: View }) {
       setDashboardVersion(d.version || null);
       setUpdated(d.timestamp);
       setError("");
-      setAuth(false);
     } catch (e) {
       setError((e as Error).message);
     } finally {

@@ -48,6 +48,9 @@ class LaunchpadTests(unittest.TestCase):
                     'https://user:password@media.example', 'http://', 'https://x:99999',
                     'https://x:0', 'https://x:bad', 'http://[broken', 'https://x/\npath',
                     'https://x\\@evil.example', 'https://x/?api_key=private',
+                    'https://x/?accessToken=private', 'https://x/?authToken=private',
+                    'https://x/?APIToken=private', 'https://x/?clientSecret=private',
+                    'https://x/#/login?accessToken=private',
                     'https://x/#access_token=private']:
             with self.subTest(url=url), self.assertRaises(ValueError):
                 self.application(url=url)
@@ -125,6 +128,14 @@ class LaunchpadTests(unittest.TestCase):
         self.assertEqual(self.store.catalogue()['applications'][0]['name'], 'My media')
         self.assertEqual(len(self.store.catalogue()['groups']), 1)
 
+    def test_import_rejects_camel_case_authorization_parameters(self):
+        with self.assertRaises(ValueError):
+            self.store.import_applications([
+                {'id': 'safe', 'name': 'Safe', 'url': 'https://safe.example', 'group': 'Test'},
+                {'id': 'secret', 'name': 'Secret', 'url': 'https://other.example/#/login?accessToken=synthetic-secret'},
+            ])
+        self.assertEqual(self.store.catalogue(), {'groups': [], 'applications': []})
+
     def test_backup_restores_catalogue_without_removing_existing_tables(self):
         with sqlite3.connect(self.path) as db:
             db.execute("INSERT INTO hosts(id,name,ip) VALUES ('saved','Server','192.168.50.12')")
@@ -198,6 +209,28 @@ class LaunchpadHTTPTests(unittest.TestCase):
             self.assertEqual(self.request(path, method, {}, headers={'Origin': 'https://attacker.example'})[0], 403)
         for body in [[], {}, {'name': 'x' * 70000}, {'name': 'X', 'url': 'javascript:alert(1)'}]:
             self.assertEqual(self.request(method='POST', body=body)[0], 400)
+
+    def test_api_rejects_authorization_parameters_without_persisting_them(self):
+        for url in ['https://app.example?accessToken=synthetic',
+                    'https://app.example/#/login?authToken=synthetic']:
+            self.assertEqual(self.request(method='POST', body={'name': 'App', 'url': url})[0], 400)
+        self.assertEqual(self.request()[1]['applications'], [])
+
+    def test_api_rejects_partial_duplicate_and_invalid_orders_atomically(self):
+        apps = [self.request(method='POST', body={'name': name, 'url': 'https://app.example'})[1] for name in ['A', 'B']]
+        ids = [a['id'] for a in apps]
+        for order in [[ids[0]], [ids[0], ids[0]], [ids[0], 'missing']]:
+            self.assertEqual(self.request('/api/applications/order', 'PUT', {'ids': order})[0], 400)
+            self.assertEqual([a['id'] for a in self.request()[1]['applications']], ids)
+
+    def test_api_revokes_confirmation_after_external_url_changes(self):
+        status, app = self.request(method='POST', body={'name': 'App', 'url': 'https://app.example',
+                                                      'external_url': 'https://app.example', 'external_access': 'confirmed'})
+        self.assertEqual(status, 201)
+        self.assertEqual(app['external_access'], 'confirmed')
+        status, changed = self.request('/api/applications/' + app['id'], 'PUT', {**app, 'external_url': 'https://new.example'})
+        self.assertEqual(status, 200)
+        self.assertEqual(changed['external_access'], 'unverified')
 
 
 if __name__ == '__main__':

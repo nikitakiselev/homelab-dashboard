@@ -40,9 +40,17 @@ def web_url(value, required=False):
     if not valid or '\\' in value or any(c.isspace() or ord(c) == 127 for c in value):
         raise ValueError('Укажите полный HTTP(S)-адрес без логина и пароля')
     parameters = parse_qsl(parsed.query) + parse_qsl(parsed.fragment.split('?', 1)[-1])
-    if any(SENSITIVE_PARAMETER.search(key) for key, _ in parameters):
+    if any(sensitive_parameter(key) for key, _ in parameters):
         raise ValueError('Используйте ссылку без токенов и параметров авторизации')
     return value
+
+
+def sensitive_parameter(key):
+    # Preserve word boundaries in accessToken, APIToken and separator variants.
+    key = re.sub(r'([A-Z]+)([A-Z][a-z])', r'\1_\2', key)
+    key = re.sub(r'([a-z0-9])([A-Z])', r'\1_\2', key)
+    key = re.sub(r'[^a-zA-Z0-9]+', '_', key)
+    return bool(SENSITIVE_PARAMETER.search(key))
 
 
 class Launchpad:
