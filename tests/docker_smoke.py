@@ -57,12 +57,18 @@ def main():
         docker('rm', name)
     def saved():
         docker('exec', name, 'python', '-c', 'import sqlite3;db=sqlite3.connect("/data/dashboard.sqlite");assert db.execute("SELECT count(*) FROM history WHERE host=?",("fixture",)).fetchone()[0]==1;db.close()')
+        catalogue = get('/api/applications')
+        assert len(catalogue['applications']) == 1
+        app = catalogue['applications'][0]
+        assert (app['name'], app['url'], app['external_access'], app['launchpad_position']) == (
+            'Smoke application', 'https://app.example.test', 'unverified', 0)
     try:
         first, get = start(args.image)
         assert get('/api/hosts')['hosts'] == []
+        docker('exec', name, 'python', '-c', 'from homelab.server.launchpad import Launchpad;Launchpad("/data/dashboard.sqlite").save_application({"name":"Smoke application","url":"https://app.example.test","external_url":"https://app.example.test"})')
         docker('exec', name, 'python', '-c', 'import sqlite3,time;db=sqlite3.connect("/data/dashboard.sqlite");db.execute("INSERT INTO history VALUES (?,?,?,?,?,?,?,?,?,?)",("fixture",int(time.time())//300*300,10,20,None,0,0,0,0,1));db.commit();db.close()')
         snapshot = docker('exec', name, 'python', '-m', 'homelab.server.backup')
-        docker('exec', name, 'python', '-c', 'import sqlite3,os,sys;db=sqlite3.connect(sys.argv[1]);assert db.execute("PRAGMA integrity_check").fetchone()[0]=="ok";assert db.execute("SELECT count(*) FROM history WHERE host=?",("fixture",)).fetchone()[0]==1;assert os.stat(sys.argv[1]).st_mode & 0o777==0o600;db.close()', snapshot)
+        docker('exec', name, 'python', '-c', 'import sqlite3,os,sys;db=sqlite3.connect(sys.argv[1]);assert db.execute("PRAGMA integrity_check").fetchone()[0]=="ok";assert db.execute("SELECT count(*) FROM history WHERE host=?",("fixture",)).fetchone()[0]==1;assert db.execute("SELECT name,launchpad_position FROM applications").fetchall()==[("Smoke application",0)];assert os.stat(sys.argv[1]).st_mode & 0o777==0o600;db.close()', snapshot)
         stop()
         second, get = start(args.next_image, '127.0.0.1/32')
         assert second['version'] != first['version']
@@ -72,7 +78,7 @@ def main():
         restored, get = start(args.image)
         assert restored == first
         saved()
-        print('PASS: non-root/read-only image, authenticated API/health check, trusted-client access, consistent backup, image update and rollback with preserved SQLite')
+        print('PASS: non-root/read-only image, authenticated API/health check, trusted-client access, consistent backup, image update and rollback with preserved history and application catalogue')
     finally:
         subprocess.run(['docker', 'rm', '-f', name], capture_output=True)
         subprocess.run(['docker', 'volume', 'rm', volume], capture_output=True, check=True)
