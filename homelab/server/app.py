@@ -19,6 +19,7 @@ from urllib.request import Request, build_opener, HTTPRedirectHandler, ProxyHand
 from ..shared.storage import History, merge_disk_io
 from .bundle import agent_archive
 from .version import release_info
+from .launchpad import Launchpad, ApplicationNotFound
 
 class NoRedirect(HTTPRedirectHandler):
     def redirect_request(self,*args):
@@ -114,6 +115,7 @@ class Dashboard:
         self.verified = set()
         self.lock = threading.Lock()
         self.poll_lock = threading.Lock()
+        self.launchpad = Launchpad(self.path)
         with self.db() as db:
             db.execute('''CREATE TABLE IF NOT EXISTS hosts (id TEXT PRIMARY KEY, name TEXT,
                 ip TEXT UNIQUE, port INTEGER, token TEXT, agent_id TEXT, synced INTEGER DEFAULT 0)''')
@@ -309,6 +311,8 @@ def handler(dashboard,token,dist,networks=()):
                     self.reply(200,release_info()); return
                 if parsed.path=='/api/hosts':
                     self.reply(200,{'hosts':dashboard.public_hosts(),'demo':dashboard.demo,'timestamp':time.time(),'version':release_info()}); return
+                if parsed.path=='/api/applications':
+                    self.reply(200,dashboard.launchpad.catalogue()); return
                 if parsed.path.startswith('/api/history/'):
                     hid=parsed.path.rsplit('/',1)[-1]
                     try: days=int(parse_qs(parsed.query).get('days',['1'])[0])
@@ -334,6 +338,29 @@ def handler(dashboard,token,dist,networks=()):
             if origin and urlparse(origin).hostname!=urlparse('http://'+self.headers.get('Host','')).hostname:
                 self.reply(403,{'error':'Cross-origin request rejected'}); return
             try:
+                path=urlparse(self.path).path
+                collection=next((name for name in ('applications','application-groups')
+                                 if path==f'/api/{name}' or path.startswith(f'/api/{name}/')),None)
+                if collection:
+                    store=dashboard.launchpad
+                    tail=path[len('/api/'+collection):].lstrip('/')
+                    if '/' in tail:
+                        self.reply(404,{'error':'Не найдено'}); return
+                    if method in ('POST','PUT'):
+                        size=int(self.headers.get('Content-Length','0'))
+                        if size>65536 or size<2: raise ValueError('Неверный размер запроса')
+                        value=json.loads(self.rfile.read(size))
+                        if not isinstance(value,dict): raise ValueError('Ожидается объект JSON')
+                    if method=='PUT' and tail=='order':
+                        store.reorder('applications' if collection=='applications' else 'groups',value.get('ids'),value.get('group_id'))
+                        self.reply(200,{'ok':True}); return
+                    if (method=='POST' and not tail) or (method=='PUT' and tail):
+                        save=store.save_application if collection=='applications' else store.save_group
+                        self.reply(201 if method=='POST' else 200,save(value,tail or None)); return
+                    if method=='DELETE' and tail:
+                        delete=store.delete_application if collection=='applications' else store.delete_group
+                        delete(tail); self.reply(200,{'ok':True}); return
+                    self.reply(404,{'error':'Не найдено'}); return
                 if method=='POST' and self.path=='/api/hosts':
                     size=int(self.headers.get('Content-Length','0'))
                     if size>16384 or size<2: raise ValueError('Неверный размер запроса')
@@ -343,11 +370,14 @@ def handler(dashboard,token,dist,networks=()):
                 if method=='DELETE' and self.path.startswith('/api/hosts/'):
                     dashboard.delete(self.path.rsplit('/',1)[-1]); self.reply(200,{'ok':True}); return
                 self.reply(404,{'error':'Не найдено'})
+            except ApplicationNotFound as e:
+                self.reply(404,{'error':str(e)})
             except (ValueError,KeyError,TypeError) as e:
                 self.reply(400,{'error':str(e)})
             except Exception:
                 self.reply(502,{'error':'Не удалось подключиться к агенту. Проверьте IP, порт, токен и доступность сервера.'})
         def do_POST(self): self.mutate('POST')
+        def do_PUT(self): self.mutate('PUT')
         def do_DELETE(self): self.mutate('DELETE')
         def log_message(self,*args): pass
     return Handler
