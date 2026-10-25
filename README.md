@@ -2,7 +2,7 @@
 
 **English** · [Русский](README.ru.md)
 
-A dashboard for monitoring home servers: CPU, GPU, memory, storage, SMART health, and network traffic.
+A home page for your homelab applications and a dashboard for monitoring home servers: CPU, GPU, memory, storage, SMART health, and network traffic.
 
 **Status:** early development. APIs, configuration, and installation may change. Intended for trusted LAN/VPN environments; built-in TLS is not available yet. The interface and detailed documentation are currently in Russian.
 
@@ -84,6 +84,8 @@ When moving an existing systemd installation, migrate its SQLite database and to
 
 ## Features
 
+- Home application launchpad with search, groups, local icons, editable links and persistent ordering. Monitoring remains available at `/overview`.
+- Separate local/external addresses; globe badges distinguish owner-confirmed external access from an unverified address. See [catalogue and import details (Russian)](docs/development.md#каталог-приложений).
 - Independent dashboard and Linux agent services, with separate configuration, credentials, databases, and updates.
 - Standalone Go agents for Linux x86_64/ARM64; no Python or Go toolchain needed on agent hosts.
 - Connect each Linux host using an IP address and token, including the host running the dashboard.
