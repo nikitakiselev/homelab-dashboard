@@ -1,6 +1,6 @@
 # Home Launchpad Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Deliver and locally run a persistent home application launchpad populated from the privately collected catalogue.
 
@@ -50,16 +50,16 @@
   `PUT /api/applications/order` accepts `{group_id,ids}`; group order accepts `{ids}`.
 - CLI: `python3 -m homelab.server.launchpad_import --data DB --catalog FILE`.
 
-- [ ] Write behavioral tests for CRUD, URL validation, confirmation resets, group deletion
+- [x] Write behavioral tests for CRUD, URL validation, confirmation resets, group deletion
   preserving applications, independent instances, reorder rollback, idempotent/atomic import,
   persistence after reopen and backup restoration; HTTP tests cover auth/origin/body limits.
-- [ ] Run `python3 -m unittest discover -s tests -p 'test_launchpad.py' -v` and observe missing catalogue behavior.
-- [ ] Implement module and additive initialization, API dispatch and CLI. Validate all fields,
+- [x] Run `python3 -m unittest discover -s tests -p 'test_launchpad.py' -v` and observe missing catalogue behavior.
+- [x] Implement module and additive initialization, API dispatch and CLI. Validate all fields,
   only HTTP(S), no URL userinfo or sensitive authorization parameters, bounded text/body sizes.
   Move applications from deleted groups into the ungrouped section; append moves to new groups.
-- [ ] Run the targeted tests, then `python3 -m unittest discover -s tests -v`.
+- [x] Run the targeted tests, then `python3 -m unittest discover -s tests -v`.
   Expected: all pass, existing host authentication and history remain intact.
-- [ ] Commit `feat(server): persist and manage the application catalogue`.
+- [x] Commit `feat(server): persist and manage the application catalogue`.
 
 ### Task 2: Launchpad interface and local application icons
 
@@ -76,19 +76,19 @@
   `externalAccessLabel(application)` supplies accessible, honest globe text.
 - Consume Task 1 catalogue/application/group field names verbatim.
 
-- [ ] Write node behavioral tests for recognition avoiding port-only guesses and false brand
+- [x] Write node behavioral tests for recognition avoiding port-only guesses and false brand
   matches, preserving user input, and external access labels.
-- [ ] Run `node --experimental-strip-types --test tests/frontend/launchpad.test.mjs`.
+- [x] Run `node --experimental-strip-types --test tests/frontend/launchpad.test.mjs`.
   Expected: missing helper behavior fails.
-- [ ] Implement responsive grouped icon grid, search and clear/empty/error states, primary
+- [x] Implement responsive grouped icon grid, search and clear/empty/error states, primary
   links in new tabs, secondary addresses and actions in an accessible details dialog.
   Add application/group creation/edit/delete and keyboard-accessible ordering controls.
-- [ ] Bundle only required brand icons from selfh.st/icons with CC BY 4.0 attribution,
+- [x] Bundle only required brand icons from selfh.st/icons with CC BY 4.0 attribution,
   original license and source manifest. Draw neutral blueprint with existing lucide primitives.
-- [ ] Integrate `/`, `/overview`, existing navigation and independent catalogue loading.
+- [x] Integrate `/`, `/overview`, existing navigation and independent catalogue loading.
   Show a compact server-status widget; application UI remains usable when metrics fail.
-- [ ] Run frontend node tests and `npm run build`; expected all pass.
-- [ ] Commit `feat(frontend): add the home application launchpad`.
+- [x] Run frontend node tests and `npm run build`; expected all pass.
+- [x] Commit `feat(frontend): add the home application launchpad`.
 
 ### Task 3: Populate, run locally, document and verify
 
@@ -99,17 +99,17 @@
 **Interfaces:**
 - Consume Task 1 CLI and Task 2 built UI; preserve existing registrations/history.
 
-- [ ] Snapshot the existing local database, import the 29 default private records, and rerun
+- [x] Snapshot the existing local database, import the 29 default private records, and rerun
   the importer to prove no duplication. Expected: first run adds 29, second skips 29.
-- [ ] Run the server on loopback with a free local port; immediately send its URL to the user.
-- [ ] Browser-check grouped icons, search, add/edit/delete, globe states, alternate links,
+- [x] Run the server on loopback with a free local port; immediately send its URL to the user.
+- [x] Browser-check grouped icons, search, add/edit/delete, globe states, alternate links,
   ordering, persistence, mobile layout and monitoring routes. Use synthetic test records only
   for CRUD; do not navigate to real application links or probe the services.
-- [ ] Document home/catalogue behavior, API/import commands, external icon meaning,
+- [x] Document home/catalogue behavior, API/import commands, external icon meaning,
   persistence and absence of ongoing discovery/probes.
-- [ ] Run `python3 -m unittest discover -s tests -v`, `npm run build`,
+- [x] Run `python3 -m unittest discover -s tests -v`, `npm run build`,
   `node --experimental-strip-types --test tests/frontend/*.test.mjs`, `sh -n install.sh`,
   and `go test -race ./...` from `agent/`. Expected: all pass.
-- [ ] Run whole-change fresh review, fix important findings with regression checks,
+- [x] Run whole-change fresh review, fix important findings with regression checks,
   inspect staged files for private data, and commit only task files.
-- [ ] Leave the local server running and report its URL, validation and material limitations.
+- [x] Leave the local server running and report its URL, validation and material limitations.
