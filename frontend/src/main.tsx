@@ -12,6 +12,7 @@ import {
 } from "react-router";
 import { type HistoryPeriod } from "./components/resource-history";
 import { NetworkHistory } from "./components/network-history";
+import { ResourceRings } from "./components/resource-rings";
 import { ServerPage } from "./components/server-page";
 import { Launchpad } from "./components/launchpad";
 import { readDashboardResponse } from "./dashboard-api";
@@ -1059,50 +1060,7 @@ function ServerCard({ host: h }: { host: Host }) {
           {copyError}
         </p>
       )}
-      <div className="my-3 grid grid-cols-3 gap-3.5">
-        {resources.map(({ label, value, detail }) => (
-          <div key={label} className="min-w-0" title={detail}>
-            <div className="text-[11px] text-muted-foreground">{label}</div>
-            <div
-              className={cn(
-                "mt-0.5 mb-1.5 text-[19px] leading-6 font-semibold",
-                value != null && value >= 90 && "text-orange-700",
-              )}
-            >
-              {percent(value)}
-            </div>
-            <div
-              role={value == null ? undefined : "progressbar"}
-              aria-label={
-                label === "RAM" ? "Занятая память" : `Загрузка ${label}`
-              }
-              aria-valuemin={value == null ? undefined : 0}
-              aria-valuemax={value == null ? undefined : 100}
-              aria-valuenow={
-                value == null ? undefined : Math.max(0, Math.min(100, value))
-              }
-              aria-valuetext={
-                value == null ? undefined : `${percent(value)} · ${detail}`
-              }
-              className="h-[5px] overflow-hidden rounded-full bg-zinc-100"
-            >
-              <div
-                className={cn(
-                  "h-full rounded-full",
-                  value != null && value >= 90
-                    ? "bg-orange-400"
-                    : label === "RAM"
-                      ? "bg-violet-500"
-                      : "bg-blue-500",
-                )}
-                style={{
-                  width: `${value == null ? 0 : Math.max(0, Math.min(100, value))}%`,
-                }}
-              />
-            </div>
-          </div>
-        ))}
-      </div>
+      <ResourceRings resources={resources} />
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-zinc-100 pt-2 text-[11px] text-muted-foreground">
         <span
           title={
