@@ -75,7 +75,13 @@ export type Metrics = {
   hostname: string;
   platform: string;
   os: string;
-  cpu: { usage: number | null; cores: number; model: string };
+  cpu: {
+    usage: number | null;
+    cores: number;
+    model: string;
+    temperature?: number | null;
+    temperature_source?: string;
+  };
   memory: { total: number; used: number; percent: number };
   disks: Disk[];
   gpus: GPU[];

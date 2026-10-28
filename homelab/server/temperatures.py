@@ -13,6 +13,8 @@ def finite(value):
 
 def observations(metrics):
     """Yield identity, display label, kind, Celsius, and original measurement time."""
+    cpu = metrics.get('cpu') or {}
+    yield ('cpu', 'CPU', 'cpu', cpu.get('temperature'), metrics.get('timestamp'))
     duplicates = {}
     for gpu in metrics.get('gpus', []):
         name = gpu.get('name') or 'GPU'

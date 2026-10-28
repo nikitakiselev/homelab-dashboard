@@ -32,6 +32,47 @@ const host = {
   },
 };
 
+test("CPU temperature supports zero, source descriptions, offline and old agents", async () => {
+  const { currentTemperatures } = await server.ssrLoadModule(
+    "/src/temperatures.ts",
+  );
+  const { TemperatureReadings } = await server.ssrLoadModule(
+    "/src/components/temperature-readings.tsx",
+  );
+  const cpuHost = {
+    ...host,
+    metrics: {
+      ...host.metrics,
+      cpu: { temperature: 0, temperature_source: "coretemp · max core" },
+    },
+  };
+  const readings = currentTemperatures(cpuHost);
+  assert.equal(readings[0].label, "CPU");
+  assert.equal(readings[0].value, 0);
+  const html = renderToStaticMarkup(
+    React.createElement(TemperatureReadings, { host: cpuHost }),
+  );
+  assert.match(html, /CPU/);
+  assert.match(html, /coretemp · max core/);
+  assert.equal(
+    currentTemperatures({ ...cpuHost, online: false })[0].saved,
+    true,
+  );
+  for (const value of [null, undefined, NaN, Infinity]) {
+    assert.equal(
+      currentTemperatures({
+        ...cpuHost,
+        metrics: { ...cpuHost.metrics, cpu: { temperature: value } },
+      }).some((r) => r.id === "cpu"),
+      false,
+    );
+  }
+  assert.equal(
+    currentTemperatures(host).some((r) => r.id === "cpu"),
+    false,
+  );
+});
+
 test("shows every finite temperature with device identity and honest measurement times", async () => {
   const { TemperatureReadings } = await server.ssrLoadModule(
     "/src/components/temperature-readings.tsx",

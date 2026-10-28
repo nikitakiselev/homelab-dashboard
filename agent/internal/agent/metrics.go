@@ -1,9 +1,11 @@
 package agent
 
 type CPU struct {
-	Usage *float64 `json:"usage"`
-	Cores int      `json:"cores"`
-	Model string   `json:"model"`
+	Usage             *float64 `json:"usage"`
+	Cores             int      `json:"cores"`
+	Model             string   `json:"model"`
+	Temperature       *float64 `json:"temperature"`
+	TemperatureSource string   `json:"temperature_source,omitempty"`
 }
 type Memory struct {
 	Total   uint64  `json:"total"`

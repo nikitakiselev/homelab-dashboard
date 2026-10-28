@@ -13,6 +13,27 @@ from homelab.server.temperatures import Temperatures
 
 
 class TemperatureTests(unittest.TestCase):
+    def test_cpu_summary_is_stable_and_uses_metrics_time(self):
+        metrics = {'timestamp': time.time() - 600, 'cpu': {'temperature': 0, 'temperature_source': 'coretemp · package'}}
+        self.store.sample('host', metrics)
+        first = self.store.read('host', 1)
+        self.assertEqual(len(first['series']), 1)
+        self.assertEqual(first['series'][0]['kind'], 'cpu')
+        sensor = first['series'][0]['id']
+        self.assertEqual(first['records'][0]['values'][sensor], 0)
+        metrics['cpu']['temperature'] = 99
+        self.store.sample('host', metrics)
+        self.assertEqual(self.store.read('host', 1), first)
+        metrics['timestamp'] += 300
+        metrics['cpu'].update(temperature=42, temperature_source='coretemp · max core')
+        self.store.sample('host', metrics)
+        result = self.store.read('host', 1)
+        self.assertEqual(result['series'], first['series'])
+        self.assertEqual(result['records'][-1]['values'][sensor], 42)
+        for cpu in ({}, {'temperature': None}, {'temperature': float('nan')}, {'temperature': True}):
+            self.store.sample('empty', {'timestamp': time.time(), 'cpu': cpu})
+        self.assertEqual(self.store.read('empty', 1)['series'], [])
+
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
@@ -110,7 +131,7 @@ class TemperatureHTTPTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             dashboard = Dashboard(Path(directory) / 'dashboard.sqlite', demo=True)
             result = dashboard.temperature_chart('demo-1', 1)
-            self.assertEqual(len(result['series']), 3)
+            self.assertEqual(len(result['series']), 4)
             self.assertGreater(len(result['records']), 100)
             self.assertEqual(dashboard.temperatures.read('demo-1', 1)['records'], [])
             disabled = Dashboard(Path(directory) / 'other.sqlite')

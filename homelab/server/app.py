@@ -95,7 +95,8 @@ def demo_metrics(index):
             'warning':'Обнаружены переназначенные секторы' if index==3 and i==1 else None})
     return {'disk_io':demo_disk_io(disks,now,5),'timestamp':now,'agent_id':f'demo-{index}','hostname':name,'platform':kind,
         'os':'Proxmox VE 8.4' if kind=='Proxmox' else 'Ubuntu 24.04 LTS',
-        'cpu':{'usage':cpu,'cores':cores,'model':model},
+        'cpu':{'usage':cpu,'cores':cores,'model':model,'temperature':round(42+cpu/5,1),
+               'temperature_source':'coretemp · package (demo)'},
         'memory':{'total':ram*1024**3,'used':ram*1024**3*[.38,.56,.22,.64][index],
                   'percent':[38,56,22,64][index]},'uptime':86400*(index+3)+3400,
         'network':{'rx':[2.4,12.6,.2,5.8][index]*10**6*(1+.12*math.sin(now/17)),

@@ -2,7 +2,7 @@ import { type Host } from "./lib";
 import { type HistoryPeriod } from "./components/resource-history";
 
 export type TemperatureHistoryData = {
-  series: { id: string; label: string; kind: "gpu" | "disk" }[];
+  series: { id: string; label: string; kind: "cpu" | "gpu" | "disk" }[];
   records: { bucket: number; values: Record<string, number | null> }[];
 };
 
@@ -10,6 +10,14 @@ export function currentTemperatures(host: Host) {
   const m = host.metrics;
   if (!m) return [];
   return [
+    {
+      id: "cpu",
+      label: "CPU",
+      name: m.cpu?.temperature_source || m.cpu?.model || "CPU",
+      value: m.cpu?.temperature,
+      measured: m.timestamp,
+      saved: !host.online,
+    },
     ...m.gpus.map((gpu, index) => ({
       id: `gpu-${index}`,
       label: `GPU ${index + 1}`,

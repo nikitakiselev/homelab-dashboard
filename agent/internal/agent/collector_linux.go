@@ -301,7 +301,8 @@ func (c *Collector) Collect() error {
 	for k, v := range c.diagnostics {
 		diagnostics[k] = v
 	}
-	m := Metrics{DiskIO: diskIO, Timestamp: float64(now.UnixNano()) / 1e9, Interval: c.Config.Collection.Interval, AgentID: c.ID, AgentVersion: Version, Hostname: hostname, OS: osname, Platform: "Linux", CPU: CPU{usage, runtime.NumCPU(), model}, Memory: Memory{mt, used, math.Round(float64(used)/float64(mt)*1000) / 10}, Network: network, Uptime: uptime, Disks: disks, GPUs: c.gpus, Diagnostics: diagnostics}
+	temperature, temperatureSource := readCPUTemperature("/sys/class/hwmon")
+	m := Metrics{DiskIO: diskIO, Timestamp: float64(now.UnixNano()) / 1e9, Interval: c.Config.Collection.Interval, AgentID: c.ID, AgentVersion: Version, Hostname: hostname, OS: osname, Platform: "Linux", CPU: CPU{Usage: usage, Cores: runtime.NumCPU(), Model: model, Temperature: temperature, TemperatureSource: temperatureSource}, Memory: Memory{mt, used, math.Round(float64(used)/float64(mt)*1000) / 10}, Network: network, Uptime: uptime, Disks: disks, GPUs: c.gpus, Diagnostics: diagnostics}
 	c.latest = &m
 	c.mu.Unlock()
 	if usage != nil && c.History != nil {

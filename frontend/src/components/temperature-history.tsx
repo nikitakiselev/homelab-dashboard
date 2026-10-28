@@ -90,7 +90,7 @@ export function TemperatureHistory({
         <PeriodSelector value={period} onChange={onPeriodChange} />
       </div>
       <p className="mt-2 text-xs leading-5 text-muted-foreground">
-        Все GPU и накопители · °C ·{" "}
+        CPU, все GPU и накопители · °C ·{" "}
         {period === 1 ? "Интервалы по 5 минут" : "Средние за 6 часов"}
       </p>
       <div

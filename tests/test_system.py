@@ -81,7 +81,7 @@ class SystemTests(unittest.TestCase):
             hid = self.add()['id']
         self.dashboard.poll()
         result = self.dashboard.temperatures.read(hid, 1)
-        self.assertEqual(len(result['series']), 3)
+        self.assertEqual(len(result['series']), 4)
         sensor = next(s['id'] for s in result['series'] if s['kind'] == 'gpu')
         self.assertEqual(next(r['values'][sensor] for r in result['records'] if sensor in r['values']), 42)
         self.dashboard.poll()
