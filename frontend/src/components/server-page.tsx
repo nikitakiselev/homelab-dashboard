@@ -9,6 +9,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { DiskActivity } from "./disk-activity";
+import { TemperatureHistory } from "./temperature-history";
 import { Card } from "./ui/card";
 import { Button } from "./ui/button";
 import {
@@ -29,6 +30,7 @@ export function ServerPage({
   onDelete,
   system,
   disks,
+  request,
 }: {
   host: Host;
   period: HistoryPeriod;
@@ -40,6 +42,7 @@ export function ServerPage({
   onDelete: () => void;
   system: ReactNode;
   disks: ReactNode;
+  request: (path: string, options?: RequestInit) => Promise<any>;
 }) {
   const m = host.metrics;
   const { hash } = useLocation();
@@ -275,6 +278,13 @@ export function ServerPage({
               </Card>
             ))}
           </div>
+          <TemperatureHistory
+            host={host}
+            period={period}
+            onPeriodChange={onPeriodChange}
+            end={end}
+            request={request}
+          />
         </section>
       )}
       {section === "disks" && (

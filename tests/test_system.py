@@ -74,6 +74,60 @@ class SystemTests(unittest.TestCase):
         self.dashboard.delete(hid)
         self.assertEqual(self.dashboard.public_hosts(),[])
 
+    def test_temperature_polling_is_independent_of_agent_history(self):
+        self.metrics['gpus'] = [{'name': 'Test GPU', 'usage': 20,
+                                'memory_used': None, 'memory_total': None, 'temperature': 42}]
+        with patch.object(self.dashboard, 'poll'):
+            hid = self.add()['id']
+        self.dashboard.poll()
+        result = self.dashboard.temperatures.read(hid, 1)
+        self.assertEqual(len(result['series']), 3)
+        sensor = next(s['id'] for s in result['series'] if s['kind'] == 'gpu')
+        self.assertEqual(next(r['values'][sensor] for r in result['records'] if sensor in r['values']), 42)
+        self.dashboard.poll()
+        self.assertEqual(self.dashboard.temperatures.read(hid, 1), result)
+        restarted = Dashboard(self.path)
+        self.assertEqual(restarted.temperatures.read(hid, 1), result)
+        restarted.delete(hid)
+        self.assertEqual(restarted.temperatures.read(hid, 1)['series'], [])
+
+    def test_deletion_serializes_with_inflight_temperature_persistence(self):
+        with patch.object(self.dashboard, 'poll'):
+            hid = self.add()['id']
+        paused = threading.Event()
+        resume = threading.Event()
+        deleting = threading.Event()
+        sample = self.dashboard.temperatures.sample
+
+        def delayed_sample(*args):
+            paused.set()
+            self.assertTrue(resume.wait(5))
+            return sample(*args)
+
+        def delete():
+            deleting.set()
+            self.dashboard.delete(hid)
+
+        with patch.object(self.dashboard.temperatures, 'sample', side_effect=delayed_sample):
+            poll = threading.Thread(target=self.dashboard.poll_host, args=(self.dashboard.hosts()[0],))
+            poll.start()
+            self.assertTrue(paused.wait(5))
+            remove = threading.Thread(target=delete)
+            remove.start()
+            self.assertTrue(deleting.wait(5))
+            # Before resuming, require deletion either to wait for the lifecycle
+            # lock or (the bug) to have removed the row behind the poll's back.
+            deadline = time.monotonic() + 2
+            while self.dashboard.hosts() and time.monotonic() < deadline:
+                time.sleep(.01)
+            resume.set()
+            poll.join(10)
+            remove.join(10)
+        self.assertFalse(poll.is_alive())
+        self.assertFalse(remove.is_alive())
+        self.assertEqual(self.dashboard.hosts(), [])
+        self.assertEqual(self.dashboard.temperatures.read(hid, 1)['series'], [])
+
     def test_previous_builtin_history_is_preserved_without_collecting(self):
         self.dashboard.history.sample('local',self.metrics)
         self.dashboard.close()

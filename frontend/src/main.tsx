@@ -13,6 +13,7 @@ import {
 import { type HistoryPeriod } from "./components/resource-history";
 import { NetworkHistory } from "./components/network-history";
 import { ResourceRings } from "./components/resource-rings";
+import { TemperatureReadings } from "./components/temperature-readings";
 import { ServerPage } from "./components/server-page";
 import { Launchpad } from "./components/launchpad";
 import { readDashboardResponse } from "./dashboard-api";
@@ -463,6 +464,7 @@ function App({ view }: { view: View }) {
               ) : detailId ? (
                 detail ? (
                   <ServerPage
+                    request={request}
                     host={detail}
                     period={period}
                     onPeriodChange={setPeriod}
@@ -1061,6 +1063,7 @@ function ServerCard({ host: h }: { host: Host }) {
         </p>
       )}
       <ResourceRings resources={resources} />
+      <TemperatureReadings host={h} />
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-zinc-100 pt-2 text-[11px] text-muted-foreground">
         <span
           title={

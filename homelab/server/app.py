@@ -20,6 +20,7 @@ from ..shared.storage import History, merge_disk_io
 from .bundle import agent_archive
 from .version import release_info
 from .launchpad import Launchpad, ApplicationNotFound
+from .temperatures import Temperatures, observations
 
 class NoRedirect(HTTPRedirectHandler):
     def redirect_request(self,*args):
@@ -106,6 +107,7 @@ class Dashboard:
     def __init__(self,path,demo=False,retention_days=90):
         if not 1<=retention_days<=3650: raise ValueError("Retention must be between 1 and 3650 days")
         self.history = History(path,retention_days=retention_days)
+        self.temperatures = Temperatures(path, retention_days)
         self.path = str(path)
         os.chmod(self.path,0o600)
         self.demo = demo
@@ -153,6 +155,7 @@ class Dashboard:
                 with self.db() as db:
                     if not db.execute('UPDATE hosts SET metrics=? WHERE id=?',(json.dumps(m),h['id'])).rowcount:
                         return
+                self.temperatures.sample(h['id'], m)
                 self.cache[h['id']]=m
                 self.verified.add(h['id'])
                 self.errors.pop(h['id'],None)
@@ -226,14 +229,30 @@ class Dashboard:
         return {'id':hid}
 
     def delete(self,hid):
-        with self.db() as db:
-            db.execute('DELETE FROM hosts WHERE id=?',(hid,))
-            db.execute('DELETE FROM history WHERE host=?',(hid,))
-            db.execute('DELETE FROM disk_history WHERE host=?',(hid,))
         with self.lock:
+            with self.db() as db:
+                db.execute('DELETE FROM hosts WHERE id=?',(hid,))
+                db.execute('DELETE FROM history WHERE host=?',(hid,))
+                db.execute('DELETE FROM disk_history WHERE host=?',(hid,))
+                db.execute('DELETE FROM temperature_samples WHERE host=?',(hid,))
+                db.execute('DELETE FROM temperature_sensors WHERE host=?',(hid,))
             self.cache.pop(hid,None); self.errors.pop(hid,None)
             self.errors.pop(hid+'-history',None)
             self.verified.discard(hid)
+
+    def temperature_chart(self, hid, days):
+        if self.demo and hid in {f'demo-{i}' for i in range(4)}:
+            metrics = demo_metrics(int(hid.split('-')[1]))
+            sensors = [(identity, label, kind, value) for identity, label, kind, value, _ in observations(metrics)
+                       if value is not None]
+            step = 300 if days == 1 else 21600
+            now = int(time.time()) // step * step
+            return {'series': [dict(id=f'demo-{i}', label=label, kind=kind)
+                               for i, (_, label, kind, _) in enumerate(sensors)],
+                    'records': [dict(bucket=t, values={f'demo-{i}': round(value + 3 * math.sin(t / 2700 + i), 1)
+                                for i, (_, _, _, value) in enumerate(sensors)})
+                                for t in range(now - days * 86400, now + 1, step)]}
+        return self.temperatures.read(hid, days)
 
     def chart(self,hid,days):
         if hid in {f'demo-{i}' for i in range(4)} and self.demo:
@@ -313,6 +332,12 @@ def handler(dashboard,token,dist,networks=()):
                     self.reply(200,{'hosts':dashboard.public_hosts(),'demo':dashboard.demo,'timestamp':time.time(),'version':release_info()}); return
                 if parsed.path=='/api/applications':
                     self.reply(200,dashboard.launchpad.catalogue()); return
+                if parsed.path.startswith('/api/temperatures/'):
+                    hid=parsed.path.rsplit('/',1)[-1]
+                    try: days=int(parse_qs(parsed.query).get('days',['1'])[0])
+                    except ValueError: days=0
+                    if days not in (1,7,30,90): self.reply(400,{'error':'Период: 1, 7, 30 или 90 дней'}); return
+                    self.reply(200,dashboard.temperature_chart(hid,days)); return
                 if parsed.path.startswith('/api/history/'):
                     hid=parsed.path.rsplit('/',1)[-1]
                     try: days=int(parse_qs(parsed.query).get('days',['1'])[0])
