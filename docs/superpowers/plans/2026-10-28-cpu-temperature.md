@@ -43,9 +43,9 @@ Interface: CPU observation identity `cpu`, label `CPU`, kind `cpu`, metrics time
 
 - [x] Run full Python suite, serial frontend tests, build, Go race tests, installer syntax and diff/format checks.
 - [x] Independent code review; resolve material findings.
-- [ ] Commit/push task files only, publish agent and dashboard releases with existing tag workflows.
-- [ ] Preserve configuration/history while updating four physical agents and VPS; verify services and actual metrics.
-- [ ] Back up dashboard, update image, verify health, cards, CPU series and persisted samples. Record limitations/results.
+- [x] Commit/push task files only, publish agent and dashboard releases with existing tag workflows.
+- [x] Preserve configuration/history while updating four physical agents and VPS; verify services and actual metrics.
+- [x] Back up dashboard, update image, verify health, cards, CPU series and persisted samples. Record limitations/results.
 
 ## Execution ledger
 
@@ -57,3 +57,6 @@ Interface: CPU observation identity `cpu`, label `CPU`, kind `cpu`, metrics time
 - Release numbering: agent-v0.3.5 already exists; new agent release will be 0.3.6, dashboard 0.3.4.
 - Final review: fixed zenpower multi-socket labels (`cpu0 Tdie`/`cpu1 Tdie`) after checking upstream driver; two-device hotter-Tctl regression RED→GREEN, full Go race suite GREEN.
 - Final: minor (deferred): Linux smoke does not specifically assert new CPU JSON fields; parser fixtures, protocol integration in Linux build, and actual deployed API readings cover this release, but a future smoke assertion would strengthen regression coverage.
+- Released feature commit `0e75bc7` to main as agent 0.3.6 and dashboard 0.3.4. Agent release, dashboard multiarch image, full Checks (including Linux smoke and install/rollback) and Go security workflows passed.
+- Deployment: all five existing agents updated with the pinned native upgrade command; services/API healthy. Config and credential hashes unchanged; consistent pre-update history backups and post-update SQLite integrity verified. Three Intel hosts report package readings, fourth reports maximum core; virtual host reports null, as expected. AMD verified by fixtures/upstream driver labels, not physical AMD hardware.
+- Dashboard consistent backup verified before image update; published 0.3.4 healthy. Actual UI shows CPU on four of five cards, CPU history series verified; 42 persisted background CPU observations across four hosts at final database check. Mobile 390px cards have no overflow. No agent installed in dashboard service.
