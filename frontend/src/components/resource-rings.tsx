@@ -20,10 +20,10 @@ export function ResourceRings({ resources }: { resources: Resource[] }) {
   }));
 
   return (
-    <div className="my-3 flex min-w-0 items-center gap-5">
+    <div className="my-2 flex min-w-0 items-center gap-3">
       <svg
         viewBox="0 0 112 112"
-        className="h-28 w-28 shrink-0"
+        className="h-20 w-20 shrink-0"
         role="group"
         aria-label="Использование ресурсов сервера"
       >
@@ -78,7 +78,7 @@ export function ResourceRings({ resources }: { resources: Resource[] }) {
           </g>
         ))}
       </svg>
-      <dl className="min-w-0 flex-1 space-y-2.5">
+      <dl className="min-w-0 flex-1 space-y-1.5">
         {readings.map(({ label, value, detail, color }) => (
           <div
             key={label}
@@ -97,7 +97,7 @@ export function ResourceRings({ resources }: { resources: Resource[] }) {
             </dt>
             <dd
               className={cn(
-                "text-base leading-5 font-semibold tabular-nums",
+                "text-sm leading-5 font-semibold tabular-nums",
                 value == null && "text-muted-foreground",
                 value != null && value >= 90 && "text-orange-700",
               )}

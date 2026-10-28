@@ -614,7 +614,7 @@ function App({ view }: { view: View }) {
                           />
                         </label>
                       </div>
-                      <div className="mb-5 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                      <div className="mb-5 grid grid-cols-1 gap-2.5 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                         {visible.map((h) => (
                           <ServerCard key={h.id} host={h} />
                         ))}
@@ -1005,7 +1005,7 @@ function ServerCard({ host: h }: { host: Host }) {
     },
   ];
   return (
-    <article className="group relative flex min-w-0 flex-col rounded-xl border border-zinc-200 bg-white p-3.5 text-left transition-colors hover:border-blue-400 focus-within:border-blue-400">
+    <article className="group relative flex min-w-0 flex-col rounded-xl border border-zinc-200 bg-white p-3 text-left transition-colors hover:border-blue-400 focus-within:border-blue-400">
       <div className="flex min-w-0 items-start gap-2.5">
         <div className="min-w-0 flex-1">
           <h3 className="truncate text-sm font-semibold group-hover:text-blue-700">
